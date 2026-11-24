@@ -2,6 +2,8 @@
 # Uso:
 #   ./scripts/build.sh                    -> renderiza y compila content/example
 #   ./scripts/build.sh content/<persona>  -> renderiza y compila esa persona
+#   ./scripts/build.sh builds/<persona>/cv-...-vacante.tex -> compila sólo ese .tex
+#     (el que escribe generate_cv al adaptar a una vacante)
 #
 # Genera builds/<persona>/cv-<lang>-<profile>.tex y los PDF en builds/<persona>/out/.
 # Usa xelatex local si existe; si no, el contenedor de TeX Live fijado por digest en
@@ -11,10 +13,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PERSON_DIR="${1:-content/example}"
-PERSON_DIR="${PERSON_DIR%/}"
-TEX_DIR="builds/$(basename "$PERSON_DIR")"
-OUT_DIR="$TEX_DIR/out"
+TARGET="${1:-content/example}"
+TARGET="${TARGET%/}"
+if [[ "$TARGET" == *.tex ]]; then
+  # Un .tex suelto se compila en la carpeta out/ que tiene al lado.
+  OUT_DIR="$(dirname "$TARGET")/out"
+else
+  PERSON_DIR="$TARGET"
+  TEX_DIR="builds/$(basename "$PERSON_DIR")"
+  OUT_DIR="$TEX_DIR/out"
+fi
 IMAGE="$(tr -d '[:space:]' < scripts/texlive-image.txt)"
 
 # Python: PYTHON si está definida; si no, el primero que de verdad se ejecute
@@ -61,11 +69,16 @@ run_xelatex () {
   esac
 }
 
-PY="$(find_python)"
-echo "==> Renderizando $PERSON_DIR en $TEX_DIR"
-# Se compilan sólo los .tex que acaba de escribir render (no restos de variantes viejas).
-# tr quita el \r que añade Python en Windows al final de cada línea.
-TEX_FILES="$("$PY" -m scripts.render "$PERSON_DIR" --out "$TEX_DIR" | tr -d '\r')"
+if [[ "$TARGET" == *.tex ]]; then
+  [ -f "$TARGET" ] || { echo "Error: no existe $TARGET" >&2; exit 1; }
+  TEX_FILES="$TARGET"
+else
+  PY="$(find_python)"
+  echo "==> Renderizando $PERSON_DIR en $TEX_DIR"
+  # Se compilan sólo los .tex que acaba de escribir render (no restos de variantes viejas).
+  # tr quita el \r que añade Python en Windows al final de cada línea.
+  TEX_FILES="$("$PY" -m scripts.render "$PERSON_DIR" --out "$TEX_DIR" | tr -d '\r')"
+fi
 
 mkdir -p "$OUT_DIR"
 while IFS= read -r tex; do
