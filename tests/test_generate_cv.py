@@ -44,6 +44,27 @@ class GenerateCvTests(unittest.TestCase):
     def proposal(self) -> dict:
         return json.loads(self.proposal_path.read_text(encoding="utf-8"))
 
+    def test_console_lists_omitted_experiences_local(self) -> None:
+        # Sólo coincide con una experiencia; la adaptación local descarta las demás.
+        with mock.patch.object(generate_cv, "_terms", return_value=["Tailwind CSS"]):
+            code, out, _ = run_main(self.out, "--job-description", "Experiencia con Tailwind CSS")
+        self.assertEqual(code, 0)
+        dropped = self.proposal()["changes"]["experience_dropped"]
+        self.assertTrue(dropped, "la adaptación local debería dejar alguna experiencia fuera")
+        self.assertIn("Experiencias omitidas", out)
+        for label in dropped:
+            self.assertIn(label, out)
+
+    def test_console_lists_omitted_experiences_groq(self) -> None:
+        result = {**GROQ_RESULT, "experience_order": [1]}
+        with mock.patch.object(generate_cv, "adapt_with_groq", return_value=result):
+            code, out, _ = run_main(self.out, "--yes")
+        self.assertEqual(code, 0)
+        dropped = self.proposal()["changes"]["experience_dropped"]
+        self.assertTrue(dropped)
+        for label in dropped:
+            self.assertIn(label, out)
+
     def test_load_env_reads_project_root_dotenv(self) -> None:
         env_path = ROOT / ".env"
         backup = env_path.read_text(encoding="utf-8") if env_path.exists() else None

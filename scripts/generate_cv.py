@@ -157,6 +157,11 @@ def _label(entry: dict[str, Any], lang: str) -> str:
     return f"{text(entry['role'], lang)} @ {text(entry['organization'], lang)}"
 
 
+def _dropped(cv: dict[str, Any], lang: str, kept: list[int]) -> list[str]:
+    """Experiencias que la adaptación dejó fuera del CV."""
+    return [_label(e, lang) for i, e in enumerate(cv["experience"]) if i not in kept]
+
+
 def _proposal(cv: dict[str, Any], lang: str, profile: str, view: dict[str, Any], result: dict[str, Any],
               source: str, fallback: bool, reason: str | None, tex: Path) -> dict[str, Any]:
     kept = result["experience_order"]
@@ -171,7 +176,7 @@ def _proposal(cv: dict[str, Any], lang: str, profile: str, view: dict[str, Any],
         "changes": {
             "summary": {"before": view["summary"], "after": result["summary"]},
             "experience": [_label(cv["experience"][i], lang) for i in kept],
-            "experience_dropped": [_label(e, lang) for i, e in enumerate(cv["experience"]) if i not in kept],
+            "experience_dropped": _dropped(cv, lang, kept),
             "skills": [text(cv["skills"][i]["label"], lang) for i in result["skills_order"]],
         },
         "review_notes": notes,
@@ -208,6 +213,11 @@ def adapt_person(person_dir: Path, variant: str, job: str, out_dir: Path, assume
     if result is None:
         result = adapt_locally(view, job)
     adapted = apply_adaptation(cv, profile, result)
+    dropped = _dropped(cv, lang, result["experience_order"])
+    if dropped:
+        print("Experiencias omitidas en este CV adaptado (revisa que sea lo que quieres):")
+        for label in dropped:
+            print(f"  - {label}")
 
     out_dir.mkdir(parents=True, exist_ok=True)
     tex = out_dir / f"cv-{lang}-{profile}-vacante.tex"
