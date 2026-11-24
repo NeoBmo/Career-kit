@@ -1,87 +1,69 @@
 #!/usr/bin/env python3
-"""A simple terminal UI for the CV generator."""
+"""Menú de terminal para generar y adaptar hojas de vida.
+
+Uso: py -m scripts.cli
+"""
 
 from __future__ import annotations
 
-import json
-import os
 import sys
-from pathlib import Path
-from scripts.env_loader import load_env
-from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[1]
-DATA_PATH = ROOT / "data" / "cv-data.json"
-OUTPUT_PATH = ROOT / "builds" / "generated-cv.tex"
+from scripts import generate_cv
+
+DEFAULT_PERSON = "content/example"
+DEFAULT_VARIANT = "es/software-developer"
 
 
-def clear_screen() -> None:
-    os.system("cls" if os.name == "nt" else "clear")
-
-
-def print_box(title: str, body: str) -> None:
-    border = "═" * (len(title) + 4)
-    print("\n┌" + border + "┐")
-    print("│  " + title + "  │")
-    print("└" + border + "┘")
-    print(body)
-
-
-def ask(prompt: str, default: Optional[str] = None) -> str:
+def ask(prompt: str, default: str = "") -> str:
     value = input(prompt).strip()
-    if value:
-        return value
-    if default is not None:
-        return default
-    return ""
+    return value or default
 
 
-def generate(*extra: str) -> None:
-    # Se lanza como módulo (-m) desde la raíz: por ruta directa, Python no encuentra
-    # el paquete `scripts` y el import de generate_cv falla.
-    import subprocess
-    subprocess.run(
-        [sys.executable, "-m", "scripts.generate_cv",
-         "--input", str(DATA_PATH), "--output", str(OUTPUT_PATH), *extra],
-        check=True,
-        cwd=str(ROOT),
-    )
+def ask_job() -> str:
+    """Lee la vacante línea a línea hasta una línea vacía (pegar varias líneas con input() no sirve)."""
+    print("Pega el texto de la vacante y termina con una línea vacía:")
+    lines: list[str] = []
+    while True:
+        try:
+            line = input()
+        except EOFError:
+            break
+        if not line.strip() and lines:
+            break
+        if line.strip():
+            lines.append(line)
+    return "\n".join(lines)
 
 
-def run() -> None:
-    # La consola de Windows usa cp1252 y no sabe pintar los bordes del menú.
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
-    load_env()
-    clear_screen()
-    print_box("CAREER KIT AI",
-              "[1] Generar CV\n[2] Adaptar a una vacante\n[3] Salir")
-    choice = ask("Selecciona una opción: ", "1")
+def run() -> int:
+    # La consola de Windows usa cp1252 y no pinta bien acentos ni símbolos.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
+    print("\nCAREER KIT")
+    print("1) Generar mis hojas de vida")
+    print("2) Adaptar a una vacante")
+    print("3) Salir")
+    choice = ask("Elige una opción [1]: ", "1")
 
     if choice == "3":
-        print("\nHasta pronto.\n")
-        return
-
-    if not DATA_PATH.exists():
-        print("No existe el archivo de datos.")
-        return
-
-    payload = json.loads(DATA_PATH.read_text(encoding="utf-8"))
-
+        print("Hasta pronto.")
+        return 0
+    if choice == "1":
+        person = ask(f"Carpeta de tu hoja de vida [{DEFAULT_PERSON}]: ", DEFAULT_PERSON)
+        return generate_cv.main([person])
     if choice == "2":
-        job_description = ask("Pega la descripción de la vacante: ")
-        if not job_description:
-            print("No se recibió una vacante.")
-            return
-        print("\nAdaptando propuesta...\n")
-        generate("--job-description", job_description)
-        print("Listo. Revisa el archivo generado y la propuesta JSON.")
-        return
-
-    print("\nGenerando CV base...\n")
-    generate()
-    print("Listo. El CV base fue generado.")
+        person = ask(f"Carpeta de tu hoja de vida [{DEFAULT_PERSON}]: ", DEFAULT_PERSON)
+        variant = ask(f"Variante (idioma/perfil) [{DEFAULT_VARIANT}]: ", DEFAULT_VARIANT)
+        job = ask_job()
+        if not job:
+            print("No se recibió una vacante.", file=sys.stderr)
+            return 1
+        return generate_cv.main([person, "--variant", variant, "--job-description", job])
+    print("Opción no válida.", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":
-    run()
+    sys.exit(run())

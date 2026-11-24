@@ -1,166 +1,166 @@
-import importlib.util
+import contextlib
+import io
+import json
 import os
+import tempfile
 import unittest
 from pathlib import Path
-from typing import Any
+from unittest import mock
 
+from scripts import generate_cv
 from scripts.env_loader import load_env
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT_PATH = ROOT / "scripts" / "generate_cv.py"
-SPEC = importlib.util.spec_from_file_location("generate_cv", SCRIPT_PATH)
-assert SPEC is not None
-generate_cv = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(generate_cv)
+EXAMPLE = ROOT / "content" / "example"
+VARIANT = "es/software-developer"
+JOB = "Buscamos a alguien con Docker y PostgreSQL para mantener nuestra plataforma."
+KEY = {"GROQ_API_KEY": "clave-de-prueba"}
+PHONE, EMAIL = "+00 000 000 0000", "alex@example.com"
+
+GROQ_RESULT = {"summary": "Resumen de IA para la vacante.", "experience_order": [1, 0],
+               "skills_order": [3, 1], "notes": "Reordené por la vacante."}
+
+
+def run_main(out: Path, *extra: str, interactive: bool = False, answer: str = "n") -> tuple[int, str, str]:
+    """Ejecuta generate_cv.main sin red ni terminal. Devuelve (código, stdout, stderr)."""
+    argv = [str(EXAMPLE), "--variant", VARIANT, "--job-description", JOB, "--out", str(out), *extra]
+    stdout, stderr = io.StringIO(), io.StringIO()
+    with mock.patch.dict(os.environ, KEY), \
+            mock.patch.object(generate_cv, "_is_interactive", return_value=interactive), \
+            mock.patch("builtins.input", return_value=answer), \
+            contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        code = generate_cv.main(argv)
+    return code, stdout.getvalue(), stderr.getvalue()
 
 
 class GenerateCvTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.out = Path(self._tmp.name)
+        self.tex_path = self.out / "cv-es-software-developer-vacante.tex"
+        self.proposal_path = self.out / "cv-es-software-developer-vacante.proposal.json"
+
+    def proposal(self) -> dict:
+        return json.loads(self.proposal_path.read_text(encoding="utf-8"))
+
     def test_load_env_reads_project_root_dotenv(self) -> None:
         env_path = ROOT / ".env"
-        backup_content = env_path.read_text(
-            encoding="utf-8") if env_path.exists() else None
-        os.environ.pop("GROQ_API_KEY", None)
-
+        backup = env_path.read_text(encoding="utf-8") if env_path.exists() else None
+        cwd = os.getcwd()
         try:
-            env_path.write_text(
-                "GROQ_API_KEY=test-key-from-root\n", encoding="utf-8")
-            os.chdir(ROOT / "tests")
-            load_env()
-            self.assertEqual(os.getenv("GROQ_API_KEY"), "test-key-from-root")
+            with mock.patch.dict(os.environ):
+                os.environ.pop("GROQ_API_KEY", None)
+                env_path.write_text("GROQ_API_KEY=test-key-from-root\n", encoding="utf-8")
+                os.chdir(ROOT / "tests")
+                load_env()
+                self.assertEqual(os.getenv("GROQ_API_KEY"), "test-key-from-root")
         finally:
-            if backup_content is None:
+            os.chdir(cwd)
+            if backup is None:
                 env_path.unlink(missing_ok=True)
             else:
-                env_path.write_text(backup_content, encoding="utf-8")
-            os.environ.pop("GROQ_API_KEY", None)
-            os.chdir(ROOT)
+                env_path.write_text(backup, encoding="utf-8")
 
-    def test_generates_adapted_objective_from_job_description(self) -> None:
-        payload: dict[str, Any] = {
-            "name": "Ana",
-            "location": "Bogotá",
-            "phone": "+00 000 000 0000",
-            "email": "ana@example.com",
-            "title": "Frontend Developer",
-            "summary": "Desarrolladora enfocada en productos web.",
-            "skills": ["React", "TypeScript", "Next.js"],
-            "experiences": [
-                {
-                    "role": "Frontend Developer",
-                    "dates": "2022 -- 2024",
-                    "organization": "Acme",
-                    "details": ["Construí interfaces con React y TypeScript"]
-                }
-            ],
-            "education": [],
-        }
-        job_description = "Frontend Developer Senior. Experiencia con React, TypeScript y Next.js."
+    def test_local_adaptation_uses_skills_mentioned_in_the_job(self) -> None:
+        # Sin clave de Groq: adaptación local y sin preguntar nada.
+        with mock.patch.dict(os.environ, KEY), mock.patch.object(generate_cv, "load_env"), \
+                mock.patch.object(generate_cv, "adapt_with_groq") as groq, \
+                contextlib.redirect_stdout(io.StringIO()):
+            os.environ.pop("GROQ_API_KEY")
+            code = generate_cv.main([str(EXAMPLE), "--variant", VARIANT, "--job-description", JOB,
+                                     "--out", str(self.out)])
+        self.assertEqual(code, 0)
+        groq.assert_not_called()
+        proposal = self.proposal()
+        self.assertFalse(proposal["fallback"])
+        self.assertEqual(proposal["source"], "local")
+        # «Backend & datos» (PostgreSQL) y «Herramientas» (Docker) pasan al frente; empatan y conservan su orden.
+        self.assertEqual(proposal["changes"]["skills"][:2], ["Backend & datos", "Herramientas"])
+        self.assertIn("Docker", proposal["changes"]["summary"]["after"])
+        self.assertIn("PostgreSQL", proposal["changes"]["summary"]["after"])
+        tex = self.tex_path.read_text(encoding="utf-8")
+        self.assertIn("Experiencia relacionada con la vacante", tex)
+        self.assertLess(tex.index("Herramientas"), tex.index("Frontend:"))
 
-        latex = generate_cv.build_latex(
-            payload, job_description=job_description)
-        objective, summary, adapted_experiences, adapted_skills = generate_cv.build_adaptation(
-            payload, job_description)
+    def test_groq_failure_marks_fallback_only_in_proposal_and_console(self) -> None:
+        with mock.patch.object(generate_cv, "adapt_with_groq", side_effect=RuntimeError("sin red")):
+            code, _, stderr = run_main(self.out, "--yes")
+        self.assertEqual(code, 0)
+        proposal = self.proposal()
+        self.assertTrue(proposal["fallback"])
+        self.assertIn("sin red", proposal["fallback_reason"])
+        self.assertIn("FALLBACK", stderr)
+        tex = self.tex_path.read_text(encoding="utf-8")
+        for marker in ("FALLBACK", "Revisar", "Review"):
+            self.assertNotIn(marker, tex)
 
-        self.assertIn("Objetivo profesional", latex)
-        self.assertIn("React", latex)
-        self.assertIn("TypeScript", latex)
-        self.assertIn("productos web", latex)
-        self.assertIn("React", objective)
-        self.assertIn("TypeScript", summary)
-        self.assertEqual(adapted_experiences[0]["organization"], "Acme")
-        self.assertIn("React", adapted_skills)
+    def test_groq_result_is_applied_and_notes_stay_out_of_the_tex(self) -> None:
+        with mock.patch.object(generate_cv, "adapt_with_groq", return_value=GROQ_RESULT):
+            code, _, _ = run_main(self.out, "--yes")
+        self.assertEqual(code, 0)
+        proposal = self.proposal()
+        self.assertFalse(proposal["fallback"])
+        self.assertEqual(proposal["source"], "groq")
+        self.assertIn("Reordené por la vacante.", proposal["review_notes"])
+        tex = self.tex_path.read_text(encoding="utf-8")
+        self.assertIn("Resumen de IA para la vacante.", tex)
+        self.assertNotIn("Reordené", tex)
+        self.assertLess(tex.index("Nodo Comercio"), tex.index("Freelance"))
 
-    def test_uses_ai_adaptation_data_when_available(self) -> None:
-        payload: dict[str, Any] = {
-            "name": "Ana",
-            "location": "Bogotá",
-            "phone": "+00 000 000 0000",
-            "email": "ana@example.com",
-            "title": "Frontend Developer",
-            "summary": "Desarrolladora enfocada en productos web.",
-            "skills": ["React", "TypeScript", "Next.js"],
-            "experiences": [
-                {
-                    "role": "Frontend Developer",
-                    "dates": "2022 -- 2024",
-                    "organization": "Acme",
-                    "details": ["Construí interfaces con React y TypeScript"]
-                }
-            ],
-            "education": [],
-        }
-        adaptation_data: dict[str, Any] = {
-            "objective": "Objetivo alineado con arquitectura frontend y experiencia en React.",
-            "summary": "Resumen adaptado por IA para el puesto de frontend senior.",
-            "relevant_skills": ["React", "TypeScript"],
-            "relevant_experiences": [{
-                "role": "Frontend Developer",
-                "organization": "Acme",
-                "dates": "2022 -- 2024",
-                "details": ["Diseñé interfaces y componentes reutilizables con React."],
-                "relevance_score": 3
-            }],
-            "notes": "Adaptado por IA"
-        }
+    def test_answering_no_does_not_call_groq(self) -> None:
+        with mock.patch.object(generate_cv, "adapt_with_groq") as groq:
+            code, stdout, _ = run_main(self.out, interactive=True, answer="n")
+        self.assertEqual(code, 0)
+        groq.assert_not_called()
+        self.assertIn("servicio de terceros", stdout)
+        self.assertEqual(self.proposal()["source"], "local")
 
-        latex = generate_cv.build_latex(
-            payload, adaptation_data=adaptation_data)
+    def test_answering_s_sends_to_groq(self) -> None:
+        with mock.patch.object(generate_cv, "adapt_with_groq", return_value=GROQ_RESULT) as groq:
+            run_main(self.out, interactive=True, answer="s")
+        groq.assert_called_once()
 
-        self.assertIn("Objetivo alineado con arquitectura frontend", latex)
-        self.assertIn("Resumen adaptado por IA", latex)
-        self.assertIn("React", latex)
-        self.assertIn("TypeScript", latex)
-        self.assertIn("componentes reutilizables", latex)
+    def test_non_interactive_without_yes_does_not_call_groq(self) -> None:
+        with mock.patch.object(generate_cv, "adapt_with_groq") as groq:
+            code, stdout, _ = run_main(self.out, interactive=False)
+        self.assertEqual(code, 0)
+        groq.assert_not_called()
+        self.assertIn("no se envía nada a Groq", stdout)
+        self.assertEqual(self.proposal()["source"], "local")
 
-    def test_includes_editorial_review_notes_for_ai_adaptation(self) -> None:
-        payload: dict[str, Any] = {
-            "name": "Ana",
-            "location": "Bogotá",
-            "phone": "+00 000 000 0000",
-            "email": "ana@example.com",
-            "title": "Frontend Developer",
-            "summary": "Desarrolladora enfocada en productos web.",
-            "skills": ["React", "TypeScript", "Next.js"],
-            "experiences": [
-                {
-                    "role": "Frontend Developer",
-                    "dates": "2022 -- 2024",
-                    "organization": "Acme",
-                    "details": ["Construí interfaces con React y TypeScript"]
-                }
-            ],
-            "education": [],
-        }
-        adaptation_data: dict[str, Any] = {
-            "objective": "Objetivo alineado con la vacante.",
-            "summary": "Resumen adaptado por IA.",
-            "relevant_skills": ["React"],
-            "relevant_experiences": [],
-            "notes": "Adaptado por IA"
-        }
+    def test_payload_sent_to_groq_has_no_phone_or_email(self) -> None:
+        with mock.patch.object(generate_cv, "adapt_with_groq", return_value=GROQ_RESULT) as groq:
+            run_main(self.out, "--yes")
+        sent = json.dumps(groq.call_args.args[0], ensure_ascii=False)
+        self.assertNotIn(PHONE, sent)
+        self.assertNotIn(EMAIL, sent)
+        self.assertNotIn("Alex Rivera", sent)
+        self.assertIn("Freelance", sent)  # sí viaja el contenido que la IA necesita
 
-        latex = generate_cv.build_latex(
-            payload, job_description="Frontend Developer", adaptation_data=adaptation_data)
+    def test_groq_text_is_escaped_for_latex(self) -> None:
+        result = {**GROQ_RESULT, "summary": "Experta en R&D con 100% de foco en #1_calidad y {llaves}."}
+        with mock.patch.object(generate_cv, "adapt_with_groq", return_value=result):
+            run_main(self.out, "--yes")
+        tex = self.tex_path.read_text(encoding="utf-8")
+        self.assertIn(r"R\&D con 100\% de foco en \#1\_calidad y \{llaves\}.", tex)
+        self.assertNotIn("R&D", tex)
 
-        self.assertIn("Review notes", latex)
-        self.assertIn("Revisar manualmente", latex)
+    def test_without_job_it_only_renders_the_variants(self) -> None:
+        with mock.patch.object(generate_cv, "adapt_with_groq") as groq, contextlib.redirect_stdout(io.StringIO()):
+            code = generate_cv.main([str(EXAMPLE), "--out", str(self.out)])
+        self.assertEqual(code, 0)
+        groq.assert_not_called()
+        self.assertEqual(len(list(self.out.glob("cv-*.tex"))), 3)
+        self.assertFalse(self.proposal_path.exists())
 
-    def test_latex_commands_use_a_single_backslash(self) -> None:
-        payload: dict[str, Any] = {
-            "name": "Ana", "location": "Bogotá", "phone": "+00 000 000 0000",
-            "email": "ana@example.com", "title": "Frontend Developer",
-            "summary": "Resumen.", "skills": ["React"], "experiences": [], "education": [],
-        }
-
-        latex = generate_cv.build_latex(payload)
-
-        # Con dos barras, LaTeX lee un salto de línea y el documento no compila.
-        self.assertTrue(latex.startswith("\\documentclass"), latex[:40])
-        self.assertNotIn("\\\\section", latex)
-        self.assertIn("\\input{styles/modern.tex}", latex)
-        # Sin adaptación no hay notas de revisión.
-        self.assertNotIn("Review notes", latex)
+    def test_unknown_variant_fails_in_spanish(self) -> None:
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = generate_cv.main([str(EXAMPLE), "--variant", "fr/nada", "--job-description", JOB,
+                                     "--out", str(self.out)])
+        self.assertEqual(code, 1)
+        self.assertIn("no existe en cv.json", stderr.getvalue())
 
 
 if __name__ == "__main__":
