@@ -12,10 +12,10 @@ de ahí salen los PDF y se comprueba que un ATS (el sistema que filtra hojas de 
 pueda leerlos. No es un editor visual: hay un solo diseño y los datos se escriben en
 JSON.
 
-Estado al 2026-11-24: funciona en local, compilando con Docker. La integración
-continua (CI) está escrita, pero todavía no ha corrido en GitHub. La plantilla se
-publicará cuando la CI se haya probado allí; mientras tanto, el camino es
-[compilar en tu equipo](#en-tu-equipo).
+Estado al 2026-11-24: primera versión pública. Compila en tu equipo con Docker y en
+GitHub Actions, que deja los PDF para descargar. Todavía no lo han probado personas
+que no programan: si te trabas en algún paso, [cuéntalo en un issue](https://github.com/NeoBmo/Career-kit/issues) y lo
+arreglamos.
 
 ![Primera página del CV de ejemplo: encabezado con nombre y cargo, y las secciones Perfil, Experiencia, Habilidades y Educación en una sola columna](assets/preview-es.png)
 
@@ -26,9 +26,6 @@ publicará cuando la CI se haya probado allí; mientras tanto, el camino es
 
 Todo corre en GitHub, desde el navegador. La [guía paso a paso](docs/guia.md) está
 escrita para quien no programa.
-
-> **Aún no disponible:** la plantilla no está publicada, así que estos pasos todavía no
-> funcionan. Usa [En tu equipo](#en-tu-equipo) hasta que se publique.
 
 0. [Crea tu cuenta de GitHub](docs/guia.md#paso-0-crea-tu-cuenta-de-github), si no la tienes.
 1. [Crea tu copia **privada**](docs/guia.md#paso-1-crea-tu-copia-privada) desde la plantilla.

@@ -4,12 +4,10 @@ Esta guía es para quien no programa. Vas a crear tu propia copia de Career Kit 
 GitHub, escribir tus datos en un archivo y descargar tus hojas de vida en PDF. Todo
 se hace desde el navegador.
 
-> **Estado al 2026-11-24: la plantilla todavía no está publicada.** Se publicará
-> cuando la integración continua (CI) se haya probado en GitHub. Hasta entonces el
-> botón «Use this template» de los pasos 1 a 3 no existe y esos pasos no funcionan.
-> Mientras tanto, el camino es compilar en tu equipo: mira la sección
-> [En tu equipo](../README.md#en-tu-equipo) del README. Necesita Python y Docker, así
-> que es más técnico.
+> **Primera versión, 2026-11-24.** Esta guía todavía no la ha seguido nadie que no
+> programe. Si un paso no coincide con lo que ves en GitHub, abre un issue en
+> <https://github.com/NeoBmo/Career-kit/issues> contando en qué paso estás y qué ves,
+> sin pegar tus datos.
 
 ## Glosario
 
