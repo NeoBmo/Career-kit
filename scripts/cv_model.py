@@ -146,7 +146,8 @@ class _Validator:
                     self.required(profile, f"profiles.{name}",
                                   {"title": "tr", "summary": "tr", "keywords": "tr-list"})
 
-        experience = self.items(data, "experience", {"role": "tr", "organization": "tr", "start": "str",
+        # start admite null: hay experiencias con una sola fecha («2021»).
+        experience = self.items(data, "experience", {"role": "tr", "organization": "tr", "start": "str?",
                                                      "end": "str?", "highlights": "tr-list"})
         for i, entry in enumerate(data["experience"] if experience else []):
             # Una experiencia sin logros dejaría un ckitems vacío, que no compila.
@@ -159,6 +160,12 @@ class _Validator:
         self.items(data, "skills", {"label": "tr", "items": "tr"})
         self.items(data, "education", {"title": "tr", "organization": "tr", "start": "str?",
                                        "end": "str?", "details": "tr"})
+        # Subtítulo opcional de una entrada («Proyecto X»), que va tras la organización.
+        for section in ("experience", "education"):
+            entries = data.get(section)
+            for i, entry in enumerate(entries if isinstance(entries, list) else []):
+                if isinstance(entry, dict) and "subtitle" in entry:
+                    self.translatable(entry["subtitle"], f"{section}[{i}].subtitle")
         variants = self.items(data, "variants", {"lang": "str", "profile": "str"}, non_empty=True)
 
         # Sólo se comprueban las traducciones si la estructura es válida.
@@ -185,6 +192,8 @@ class _Validator:
             for i, entry in enumerate(data[section]):
                 for key in keys:
                     used.append((f"{section}[{i}].{key}", entry[key]))
+                if "subtitle" in entry:
+                    used.append((f"{section}[{i}].subtitle", entry["subtitle"]))
 
         for path, value in used:
             if isinstance(value, dict) and lang not in value:

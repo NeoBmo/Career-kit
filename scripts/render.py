@@ -71,12 +71,15 @@ def render_variant(cv: dict[str, Any], lang: str, profile_name: str) -> str:
                rf"{escape(person['phone'])}\ \textbar\ "
                + href(f"mailto:{person['email']}", person["email"]))
 
+    def subtitle(entry: dict[str, Any]) -> str:
+        return escape(text(entry["subtitle"], lang)) if "subtitle" in entry else ""
+
     experience: list[str] = []
     for entry in cv["experience"]:
         experience.append(
             rf"\ckEntry{{{escape(text(entry['role'], lang))}}}"
             rf"{{{dates(entry['start'], entry['end'])}}}"
-            rf"{{{escape(text(entry['organization'], lang))}}}{{}}")
+            rf"{{{escape(text(entry['organization'], lang))}}}{{{subtitle(entry)}}}")
         experience.append(r"\begin{ckitems}")
         experience.extend(rf"  \item {escape(item)}" for item in text(entry["highlights"], lang))
         experience.append(r"\end{ckitems}")
@@ -95,7 +98,7 @@ def render_variant(cv: dict[str, Any], lang: str, profile_name: str) -> str:
         education.append(
             rf"\ckEntry{{{escape(text(entry['title'], lang))}}}"
             rf"{{{dates(entry['start'], entry['end'])}}}"
-            rf"{{{escape(text(entry['organization'], lang))}}}{{}}"
+            rf"{{{escape(text(entry['organization'], lang))}}}{{{subtitle(entry)}}}"
             "\n" + escape(text(entry["details"], lang)))
 
     summary = escape(text(profile["summary"], lang))

@@ -59,6 +59,19 @@ class RenderVariantTests(unittest.TestCase):
         tex = render_variant(minimal_cv(), "es", "software-developer")
         self.assertIn(r"\ckEntry{Técnica}{2021}{Instituto}{}", tex)
 
+    def test_experience_with_a_single_date(self) -> None:
+        cv = minimal_cv()
+        cv["experience"][0]["start"] = None
+        cv["experience"][0]["end"] = "2021"
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertIn(r"\ckEntry{Desarrolladora}{2021}{Freelance}{}", tex)
+
+    def test_optional_subtitle_is_fourth_argument(self) -> None:
+        cv = minimal_cv()
+        cv["experience"][0]["subtitle"] = {"es": "Proyecto & piloto"}
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertIn(r"{Freelance}{Proyecto \& piloto}", tex)
+
     def test_preamble_inputs_lang_and_style_from_repo_root(self) -> None:
         tex = render_variant(minimal_cv(), "es", "software-developer")
         self.assertIn(r"\input{lang/es.tex}", tex)
