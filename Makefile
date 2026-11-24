@@ -1,25 +1,19 @@
-.PHONY: all clean list
+.PHONY: all build list clean
 
-BUILDS_DIR := builds
-OUT_DIR    := builds/out
-LATEX      := latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=$(OUT_DIR)
+# Persona a compilar: make build PERSON=content/<persona>
+PERSON ?= content/example
 
-# Compila TODAS las variantes en builds/*.tex
-all:
-	@mkdir -p $(OUT_DIR)
-	@for f in $(BUILDS_DIR)/*.tex; do \
-		echo "==> Compilando $$f"; \
-		$(LATEX) "$$f" || exit 1; \
-	done
+all: build
 
-# Compila una sola variante: make build NAME=cv-es-software-developer
+# Renderiza las variantes de cv.json y las compila (xelatex local o Docker).
 build:
-	@mkdir -p $(OUT_DIR)
-	$(LATEX) $(BUILDS_DIR)/$(NAME).tex
+	@bash scripts/build.sh $(PERSON)
 
+# Personas disponibles: cada carpeta de content/ con un cv.json.
 list:
-	@ls $(BUILDS_DIR)/*.tex | sed 's|.*/||; s|\.tex||'
+	@for f in content/*/cv.json; do dirname "$$f"; done
 
+# Borra los .tex y PDF generados de la persona (se regeneran con make build).
 clean:
-	@rm -rf $(OUT_DIR)
-	@find . -name "*.aux" -o -name "*.log" -o -name "*.fls" -o -name "*.fdb_latexmk" -o -name "*.out" | xargs -r rm -f
+	@test -n "$(notdir $(PERSON))" || { echo "Error: PERSON vacío"; exit 1; }
+	@rm -rf "builds/$(notdir $(PERSON))"
