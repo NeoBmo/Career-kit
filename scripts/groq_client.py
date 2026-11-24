@@ -27,27 +27,27 @@ class GroqResponseError(ValueError):
 def _index_list(obj: Dict[str, Any], key: str, size: int) -> Tuple[bool, str]:
     value = obj.get(key)
     if not isinstance(value, list) or not value:
-        return False, f"{key} must be a non-empty list"
+        return False, f"{key} debe ser una lista no vacía"
     # bool es subclase de int: se descarta para que `true` no valga como 1.
     if any(isinstance(i, bool) or not isinstance(i, int) or not 0 <= i < size for i in value):
-        return False, f"{key} has an index out of range"
+        return False, f"{key} tiene un índice fuera de rango"
     if len(set(value)) != len(value):
-        return False, f"{key} repeats an index"
+        return False, f"{key} repite un índice"
     return True, "ok"
 
 
 def _validate_structure(obj: Dict[str, Any], payload: Dict[str, Any]) -> Tuple[bool, str]:
     """Comprueba la forma de la respuesta y que los índices existan en el payload."""
     if not isinstance(obj, dict):
-        return False, "response is not an object"
+        return False, "la respuesta no es un objeto"
     for key in ("summary", "experience_order", "skills_order", "notes"):
         if key not in obj:
-            return False, f"missing key: {key}"
+            return False, f"falta la clave {key}"
     summary = obj["summary"]
     if not isinstance(summary, str) or not summary.strip() or summary.strip().upper() == "NO_INFO":
-        return False, "summary is empty"
+        return False, "summary está vacío"
     if not isinstance(obj["notes"], str):
-        return False, "notes is not a string"
+        return False, "notes no es una cadena"
     for key, source in (("experience_order", "experiences"), ("skills_order", "skills")):
         ok, msg = _index_list(obj, key, len(payload.get(source, [])))
         if not ok:
@@ -73,10 +73,13 @@ def call_groq_raw(system_prompt: str, user_prompt: str, model: str | None = None
     load_env()
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise RuntimeError("GROQ_API_KEY not found in environment")
+        raise RuntimeError("No se encontró GROQ_API_KEY en el entorno")
 
     model = model or os.getenv("GROQ_MODEL", DEFAULT_MODEL)
     api_url = os.getenv("GROQ_API_URL", DEFAULT_API_URL)
+    # La clave viaja en el encabezado: nunca se envía por http:// ni a otro esquema.
+    if not api_url.startswith("https://"):
+        raise RuntimeError("GROQ_API_URL debe empezar por https://; no se envió nada a Groq")
 
     body = {
         "model": model,
