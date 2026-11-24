@@ -40,7 +40,7 @@ class GenerateCvTests(unittest.TestCase):
         payload: dict[str, Any] = {
             "name": "Ana",
             "location": "Bogotá",
-            "phone": "+57 300 0000000",
+            "phone": "+00 000 000 0000",
             "email": "ana@example.com",
             "title": "Frontend Developer",
             "summary": "Desarrolladora enfocada en productos web.",
@@ -75,7 +75,7 @@ class GenerateCvTests(unittest.TestCase):
         payload: dict[str, Any] = {
             "name": "Ana",
             "location": "Bogotá",
-            "phone": "+57 300 0000000",
+            "phone": "+00 000 000 0000",
             "email": "ana@example.com",
             "title": "Frontend Developer",
             "summary": "Desarrolladora enfocada en productos web.",
@@ -117,7 +117,7 @@ class GenerateCvTests(unittest.TestCase):
         payload: dict[str, Any] = {
             "name": "Ana",
             "location": "Bogotá",
-            "phone": "+57 300 0000000",
+            "phone": "+00 000 000 0000",
             "email": "ana@example.com",
             "title": "Frontend Developer",
             "summary": "Desarrolladora enfocada en productos web.",
@@ -148,7 +148,7 @@ class GenerateCvTests(unittest.TestCase):
 
     def test_latex_commands_use_a_single_backslash(self) -> None:
         payload: dict[str, Any] = {
-            "name": "Ana", "location": "Bogotá", "phone": "+57 300 0000000",
+            "name": "Ana", "location": "Bogotá", "phone": "+00 000 000 0000",
             "email": "ana@example.com", "title": "Frontend Developer",
             "summary": "Resumen.", "skills": ["React"], "experiences": [], "education": [],
         }

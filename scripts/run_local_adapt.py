@@ -16,7 +16,7 @@ def main() -> None:
     payload = {
         "name": "Ana",
         "location": "Bogotá",
-        "phone": "+57 300 0000000",
+        "phone": "+00 000 000 0000",
         "email": "ana@example.com",
         "title": "Frontend Developer",
         "summary": "Desarrolladora enfocada en productos web.",
