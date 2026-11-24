@@ -65,5 +65,39 @@ class AtsCheckTests(unittest.TestCase):
         self.assertIn("-enc", run.call_args.args[0])
         self.assertIn("UTF-8", run.call_args.args[0])
 
+SECTIONS = ["Perfil", "Experiencia", "Habilidades", "Educación"]
+BODY = "relleno " * 40
+
+
+def cv_text(*titles: str) -> str:
+    return "\n".join(f"{title}\n{BODY}" for title in titles)
+
+
+class SectionOrderTests(unittest.TestCase):
+    def test_sections_in_order_are_ok(self) -> None:
+        result = ats_check.check_text(cv_text(*SECTIONS), [], SECTIONS)
+        self.assertTrue(result["order_ok"])
+        self.assertTrue(result["ok"])
+
+    def test_sections_out_of_order_fail(self) -> None:
+        text = cv_text("Perfil", "Habilidades", "Experiencia", "Educación")
+        result = ats_check.check_text(text, [], SECTIONS)
+        self.assertFalse(result["order_ok"])
+        self.assertFalse(result["ok"])
+
+    def test_missing_section_title_fails(self) -> None:
+        result = ats_check.check_text(cv_text("Perfil", "Experiencia", "Habilidades"), [], SECTIONS)
+        self.assertFalse(result["order_ok"])
+        self.assertEqual(result["missing_sections"], ["Educación"])
+
+    def test_order_is_not_checked_without_sections(self) -> None:
+        result = ats_check.check_text(BODY, [])
+        self.assertTrue(result["order_ok"])
+
+    def test_titles_come_from_lang_file(self) -> None:
+        self.assertEqual(ats_check.section_titles("es"), SECTIONS)
+        self.assertEqual(ats_check.section_titles("en")[0], "Profile")
+
+
 if __name__ == "__main__":
     unittest.main()

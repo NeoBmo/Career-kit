@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from scripts.ats_check import _extract_text, check_text
+from scripts.ats_check import _extract_text, check_text, section_titles
 from scripts.cv_model import CvError, load_cv, text
 
 
@@ -28,6 +28,13 @@ def _keywords(cv: dict, profile: str, lang: str) -> list[str]:
     if callable(getattr(kw, "__call__", None)):
         kw = text(kw, lang)
     return list(kw)
+
+
+def _sections(cv: dict, lang: str) -> list[str]:
+    """Títulos que render.py imprime en esa variante: las secciones vacías no salen."""
+    titles = section_titles(lang)
+    present = [True, bool(cv["experience"]), bool(cv["skills"]), bool(cv["education"])]
+    return [t for t, keep in zip(titles, present) if keep]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -75,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
 
         keywords = _keywords(cv, profile, lang)
-        result = check_text(extracted, keywords)
+        result = check_text(extracted, keywords, _sections(cv, lang))
         ok = bool(result["ok"]) if isinstance(result, dict) else bool(result)
         missing = result.get("missing_keywords", []) if isinstance(result, dict) else []
         chars = result.get("chars", len(extracted)) if isinstance(result, dict) else len(extracted)
@@ -84,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{name}: {status} ({chars} caracteres, {len(missing)} keywords faltantes)")
         if missing:
             print(f"  Keywords faltantes: {', '.join(missing)}")
+        if isinstance(result, dict) and not result.get("order_ok", True):
+            print("  Las secciones no aparecen en el orden esperado: el texto está desordenado.")
         if not ok:
             failed += 1
         results.append((name, ok, chars, missing))

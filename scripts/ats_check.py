@@ -12,6 +12,8 @@ import sys
 import unicodedata
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def normalize(text: str) -> str:
     """Normaliza texto: sin tildes, en minúsculas y sin espacios repetidos."""
@@ -22,8 +24,30 @@ def normalize(text: str) -> str:
     return text
 
 
-def check_text(text: str, keywords: list[str]) -> dict:
-    """Comprueba el texto extraído: caracteres y keywords presentes."""
+def check_order(text: str, sections: list[str]) -> tuple[bool, list[str]]:
+    """Comprueba que los títulos de sección aparezcan, cada uno en su línea, en el orden dado.
+
+    Un PDF con el texto desordenado (columnas mezcladas, capas) deja los títulos en otro
+    orden o no los deja solos en una línea. Devuelve (orden_ok, títulos_no_encontrados).
+    """
+    lines = [normalize(line) for line in text.splitlines()]
+    position = -1
+    missing: list[str] = []
+    in_order = True
+    for title in sections:
+        wanted = normalize(title)
+        found = next((i for i, line in enumerate(lines) if line == wanted), None)
+        if found is None:
+            missing.append(title)
+        elif found < position:
+            in_order = False
+        else:
+            position = found
+    return in_order and not missing, missing
+
+
+def check_text(text: str, keywords: list[str], sections: list[str] | None = None) -> dict:
+    """Comprueba el texto extraído: caracteres, keywords presentes y, si se pasan, el orden."""
     normalized_text = normalize(text)
     found_keywords: list[str] = []
     missing_keywords: list[str] = []
@@ -36,13 +60,27 @@ def check_text(text: str, keywords: list[str]) -> dict:
             missing_keywords.append(keyword)
 
     chars = len(text)
-    ok = chars >= 200 and not missing_keywords
+    order_ok, missing_sections = check_order(text, sections) if sections else (True, [])
+    ok = chars >= 200 and not missing_keywords and order_ok
     return {
         "chars": chars,
         "missing_keywords": missing_keywords,
         "found_keywords": found_keywords,
+        "order_ok": order_ok,
+        "missing_sections": missing_sections,
         "ok": ok,
     }
+
+
+def section_titles(lang: str) -> list[str]:
+    """Títulos de sección de la variante, en el orden en que render.py los escribe."""
+    source = (ROOT / "lang" / f"{lang}.tex").read_text(encoding="utf-8")
+    titles = []
+    for label in ("LblProfile", "LblExperience", "LblSkills", "LblEducation"):
+        match = re.search(r"\\newcommand\{\\" + label + r"\}\{([^}]*)\}", source)
+        if match:
+            titles.append(match.group(1))
+    return titles
 
 
 def _load_keywords(args: argparse.Namespace) -> list[str]:
@@ -83,6 +121,7 @@ def _print_report(result: dict) -> None:
     missing = ", ".join(result["missing_keywords"]) or "(ninguna)"
     print(f"- Keywords encontradas: {found}")
     print(f"- Keywords faltantes: {missing}")
+    print(f"- Orden de las secciones: {'OK' if result['order_ok'] else 'FALLA'}")
     if result["ok"]:
         print("\nResultado: OK")
     else:
@@ -91,6 +130,10 @@ def _print_report(result: dict) -> None:
             print("  El PDF tiene menos de 200 caracteres: un ATS no puede leerlo.")
         if result["missing_keywords"]:
             print("  Faltan keywords del perfil en el texto.")
+        if not result["order_ok"]:
+            print("  Las secciones no aparecen en el orden esperado: el texto está desordenado.")
+            if result["missing_sections"]:
+                print(f"  Títulos no encontrados: {', '.join(result['missing_sections'])}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,6 +147,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Keywords separadas por comas")
     parser.add_argument("--keywords-file", default=None,
                         help="Archivo con keywords (una por línea o separadas por comas)")
+    parser.add_argument("--sections", default=None,
+                        help='Títulos de sección en el orden esperado, p. ej. "Perfil,Experiencia,Habilidades,Educación"')
+    parser.add_argument("--lang", default=None,
+                        help="Deriva los títulos de sección de lang/<lang>.tex")
     parser.add_argument("--json", action="store_true",
                         help="Imprime el resultado en JSON")
     args = parser.parse_args(argv)
@@ -129,7 +176,16 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     keywords = _load_keywords(args)
-    result = check_text(text, keywords)
+    sections = None
+    if args.sections:
+        sections = [part.strip() for part in args.sections.split(",") if part.strip()]
+    elif args.lang:
+        try:
+            sections = section_titles(args.lang)
+        except OSError:
+            print(f"No existe lang/{args.lang}.tex", file=sys.stderr)
+            return 2
+    result = check_text(text, keywords, sections)
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False))
