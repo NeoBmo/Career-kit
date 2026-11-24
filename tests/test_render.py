@@ -156,8 +156,9 @@ class FilesToScanTests(unittest.TestCase):
         self.assertEqual(files_to_scan(names), ["README.md", "content/example/cv.json"])
 
     def test_simulated_person_with_personal_data_is_not_scanned(self) -> None:
-        # Datos «personales» simulados, partidos para que este archivo no se detecte a sí mismo.
-        fake = '{"email": "ana' + "@" + 'gmail.com", "phone": "+57' + ' 300 000 0000"}'
+        # Datos «personales» simulados, partidos y cortos para que ni este test ni privacy_check
+        # los detecten en este archivo; basta con que contengan las agujas prohibidas.
+        fake = '{"email": "ana' + "@" + 'gmail", "phone": "+57' + ' 3"}'
         with tempfile.TemporaryDirectory() as tmp:
             person = Path(tmp) / "content" / "otra-persona"
             person.mkdir(parents=True)
