@@ -15,7 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Descargar el código
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Ejecutar tests
         run: python3 -m unittest discover -s tests
 
@@ -28,17 +30,38 @@ jobs:
     if: github.repository == 'NeoBmo/Career-kit'
     steps:
       - name: Descargar el código
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Comprobar privacidad
         run: python3 -m scripts.privacy_check
 
-  # Job 3: compila las hojas de vida de ejemplo y las deja como artefacto.
+  # Job 3: en una copia de la plantilla, avisa si el repositorio es público,
+  # porque ahí vive el CV real de la persona.
+  copia-publica:
+    name: Copia pública
+    runs-on: ubuntu-latest
+    if: github.repository != 'NeoBmo/Career-kit'
+    steps:
+      - name: Comprobar que la copia es privada
+        # El valor pasa por env y no dentro de run: así no hay inyección de código.
+        env:
+          REPO_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [ "$REPO_PRIVATE" = "false" ]; then
+            echo "::error::Tu copia es PÚBLICA: cualquiera puede ver tu hoja de vida. Ve a Settings → General → Danger Zone → Change visibility y márcala como privada."
+            exit 1
+          fi
+
+  # Job 4: compila las hojas de vida de ejemplo y las deja como artefacto.
   hojas-de-vida:
     name: Hojas de vida
     runs-on: ubuntu-latest
     steps:
       - name: Descargar el código
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Instalar poppler-utils (pdftotext)
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
       # Primero se compilan todas las personas de content/ (salvo private).
@@ -54,7 +77,7 @@ jobs:
       # así puedes descargarlos y ver qué keyword falta.
       - name: Subir PDFs como artefacto
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: hojas-de-vida
           path: builds/*/out/*.pdf
