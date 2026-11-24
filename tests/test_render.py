@@ -98,6 +98,33 @@ class RenderExampleTests(unittest.TestCase):
                         self.assertIn(keyword, body)
 
 
+def files_to_scan(names: list[str]) -> list[str]:
+    """Archivos que el test de privacidad revisa: todo salvo el CV de cada persona.
+
+    En una copia privada, content/<persona>/ lleva datos reales a propósito; sólo
+    content/example/ es ficticio y debe estar limpio.
+    """
+    return [n for n in names if not n.startswith("content/") or n.startswith("content/example/")]
+
+
+class FilesToScanTests(unittest.TestCase):
+    def test_other_persons_content_is_ignored(self) -> None:
+        names = ["README.md", "content/example/cv.json", "content/otra-persona/cv.json",
+                 "content/private/cv.json"]
+        self.assertEqual(files_to_scan(names), ["README.md", "content/example/cv.json"])
+
+    def test_simulated_person_with_personal_data_is_not_scanned(self) -> None:
+        # Datos «personales» simulados, partidos para que este archivo no se detecte a sí mismo.
+        fake = '{"email": "ana' + "@" + 'gmail.com", "phone": "+57' + ' 300 000 0000"}'
+        with tempfile.TemporaryDirectory() as tmp:
+            person = Path(tmp) / "content" / "otra-persona"
+            person.mkdir(parents=True)
+            (person / "cv.json").write_text(fake, encoding="utf-8")
+            scanned = files_to_scan(["content/otra-persona/cv.json"])
+        self.assertEqual(scanned, [])
+        self.assertTrue(any(n.encode() in fake.encode() for n in NoPersonalDataTests.FORBIDDEN))
+
+
 class NoPersonalDataTests(unittest.TestCase):
     # Partidos en dos para que este archivo no se detecte a sí mismo.
     FORBIDDEN = ("@" + "gmail", "+57" + " 3")
