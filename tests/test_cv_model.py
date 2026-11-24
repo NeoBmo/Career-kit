@@ -85,6 +85,42 @@ class CvModelTests(unittest.TestCase):
         data["experience"][0]["highlights"]["es"] = []
         self.assert_error(data, "experience[0].highlights.es")
 
+    def test_more_is_optional(self) -> None:
+        data = minimal_cv()
+        del data["more"]
+        validate(data)
+
+    def test_more_if_present_is_validated(self) -> None:
+        data = minimal_cv()
+        del data["more"]["url"]
+        self.assert_error(data, "more.url")
+
+    def test_empty_sections_are_valid(self) -> None:
+        data = minimal_cv()
+        data["experience"], data["education"], data["skills"] = [], [], []
+        validate(data)
+
+    def test_path_traversal_in_profile_is_rejected(self) -> None:
+        data = minimal_cv()
+        data["profiles"]["x/../../y"] = data["profiles"].pop("software-developer")
+        data["variants"][0]["profile"] = "x/../../y"
+        self.assert_error(data, "profiles.x/../../y")
+        self.assert_error(data, "variants[0].profile")
+
+    def test_variant_lang_must_be_a_slug(self) -> None:
+        data = minimal_cv()
+        data["variants"][0]["lang"] = "../es"
+        error = self.assert_error(data, "variants[0].lang")
+        self.assertIn("minúsculas", str(error))
+
+    def test_slug_rejects_uppercase_and_trailing_newline(self) -> None:
+        for bad in ("Es", "es\n", "e s", ""):
+            with self.subTest(bad=bad):
+                data = minimal_cv()
+                data["variants"][0]["lang"] = bad
+                with self.assertRaises(CvError):
+                    validate(data)
+
 
 if __name__ == "__main__":
     unittest.main()

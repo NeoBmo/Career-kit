@@ -10,6 +10,7 @@ Las listas traducibles (logros, keywords) siguen la misma regla.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -46,12 +47,21 @@ def validate(data: Any) -> None:
         raise CvError(errors)
 
 
+# Los nombres de idioma y de perfil acaban en nombres de archivo (cv-<lang>-<profile>.tex):
+# sólo se admiten minúsculas, dígitos y guiones para que no puedan salir de la carpeta.
+_SLUG = re.compile(r"[a-z0-9-]+")
+
+
 class _Validator:
     def __init__(self, errors: list[str]) -> None:
         self.errors = errors
 
     def fail(self, path: str, message: str) -> None:
         self.errors.append(f"{path}: {message}")
+
+    def slug(self, value: Any, path: str) -> None:
+        if isinstance(value, str) and not _SLUG.fullmatch(value):
+            self.fail(path, "sólo admite minúsculas, números y guiones (^[a-z0-9-]+$)")
 
     # ---------- Tipos básicos ----------
 
@@ -133,8 +143,9 @@ class _Validator:
         if person is not None and self.obj(person, "person"):
             self.required(person, "person", {"name": "str", "location": "tr", "phone": "str", "email": "str"})
 
-        more = self.field(data, "more", "")
-        if more is not None and self.obj(more, "more"):
+        # `more` (el pie «Conoce más») es opcional: no todos tienen portafolio.
+        more = data.get("more")
+        if "more" in data and self.obj(more, "more"):
             self.required(more, "more", {"label": "tr", "url": "str"})
 
         profiles = self.field(data, "profiles", "")
@@ -142,6 +153,7 @@ class _Validator:
             if not profiles:
                 self.fail("profiles", "debe tener al menos un perfil")
             for name, profile in profiles.items():
+                self.slug(name, f"profiles.{name}")
                 if self.obj(profile, f"profiles.{name}"):
                     self.required(profile, f"profiles.{name}",
                                   {"title": "tr", "summary": "tr", "keywords": "tr-list"})
@@ -167,6 +179,9 @@ class _Validator:
                 if isinstance(entry, dict) and "subtitle" in entry:
                     self.translatable(entry["subtitle"], f"{section}[{i}].subtitle")
         variants = self.items(data, "variants", {"lang": "str", "profile": "str"}, non_empty=True)
+        for i, variant in enumerate(variants):
+            self.slug(variant.get("lang"), f"variants[{i}].lang")
+            self.slug(variant.get("profile"), f"variants[{i}].profile")
 
         # Sólo se comprueban las traducciones si la estructura es válida.
         if not self.errors:
@@ -180,10 +195,9 @@ class _Validator:
             self.fail(f"variants[{index}].profile", f"el perfil '{profile}' no existe en profiles")
             return
 
-        used: list[tuple[str, Any]] = [
-            ("person.location", data["person"]["location"]),
-            ("more.label", data["more"]["label"]),
-        ]
+        used: list[tuple[str, Any]] = [("person.location", data["person"]["location"])]
+        if "more" in data:
+            used.append(("more.label", data["more"]["label"]))
         for key in ("title", "summary", "keywords"):
             used.append((f"profiles.{profile}.{key}", data["profiles"][profile][key]))
         for section, keys in (("experience", ("role", "organization", "highlights")),

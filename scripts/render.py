@@ -12,6 +12,7 @@ build.sh.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -40,7 +41,12 @@ _URL_ESCAPES = {"%": r"\%", "#": r"\#"}
 
 
 def escape(value: str) -> str:
-    """Escapa texto para LaTeX. Guiones largos y acentos UTF-8 quedan tal cual."""
+    """Escapa texto para LaTeX. Guiones largos y acentos UTF-8 quedan tal cual.
+
+    Colapsa saltos de línea y espacios repetidos en un solo espacio: una línea en
+    blanco dentro de \\hypersetup o de un título rompería la compilación.
+    """
+    value = re.sub(r"\s+", " ", value).strip()
     return "".join(_TEXT_ESCAPES.get(char, char) for char in value)
 
 
@@ -59,9 +65,22 @@ def dates(start: str | None, end: str | None) -> str:
     return f"{escape(start)} -- {end_tex}" if start else end_tex
 
 
+def item(value: str) -> str:
+    """Un \\item con el texto escapado. `\\item{}` evita que un `[` inicial se lea como etiqueta."""
+    tex = escape(value)
+    return rf"  \item{{}} {tex}" if tex.startswith("[") else rf"  \item {tex}"
+
+
+def section(title_macro: str, name: str, content: str) -> str:
+    """Bloque de una sección. Sin contenido no se imprime ni su título."""
+    if not content:
+        return ""
+    return f"% ---------- {name} ----------\n\\section*{{{title_macro}}}\n{content}\n\n"
+
+
 def render_variant(cv: dict[str, Any], lang: str, profile_name: str) -> str:
     """Devuelve el .tex completo de una variante. El cv ya debe estar validado."""
-    person, more = cv["person"], cv["more"]
+    person, more = cv["person"], cv.get("more")
     profile = cv["profiles"][profile_name]
 
     name = escape(person["name"])
@@ -81,14 +100,16 @@ def render_variant(cv: dict[str, Any], lang: str, profile_name: str) -> str:
             rf"{{{dates(entry['start'], entry['end'])}}}"
             rf"{{{escape(text(entry['organization'], lang))}}}{{{subtitle(entry)}}}")
         experience.append(r"\begin{ckitems}")
-        experience.extend(rf"  \item {escape(item)}" for item in text(entry["highlights"], lang))
+        experience.extend(item(value) for value in text(entry["highlights"], lang))
         experience.append(r"\end{ckitems}")
 
-    skills = [r"\begin{ckitems}"]
-    skills.extend(
-        rf"  \item \textbf{{{escape(text(group['label'], lang))}:}} {escape(text(group['items'], lang))}"
-        for group in cv["skills"])
-    skills.append(r"\end{ckitems}")
+    skills: list[str] = []
+    if cv["skills"]:
+        skills.append(r"\begin{ckitems}")
+        skills.extend(
+            rf"  \item \textbf{{{escape(text(group['label'], lang))}:}} {escape(text(group['items'], lang))}"
+            for group in cv["skills"])
+        skills.append(r"\end{ckitems}")
 
     # Como en main.tex, cada entrada va seguida de su párrafo de detalles. Las entradas
     # se separan con una línea en blanco: sin ese \par, el párrafo seguiría abierto y
@@ -102,8 +123,17 @@ def render_variant(cv: dict[str, Any], lang: str, profile_name: str) -> str:
             "\n" + escape(text(entry["details"], lang)))
 
     summary = escape(text(profile["summary"], lang))
-    more_link = href(more["url"], text(more["label"], lang))
     nl = "\n"
+    sections = (section(r"\LblExperience", "Experiencia", nl.join(experience))
+                + section(r"\LblSkills", "Habilidades", nl.join(skills))
+                + section(r"\LblEducation", "Educación", (nl + nl).join(education)))
+    # El pie «Conoce más» es opcional: quien no tiene portafolio no lo imprime.
+    footer = ""
+    if more:
+        more_link = href(more["url"], text(more["label"], lang))
+        footer = (r"\begin{center}" + nl
+                  + rf"  {{\footnotesize\color{{ckSubtle}}\LblMore\ ---\ {more_link}}}" + nl
+                  + r"\end{center}" + nl + nl)
 
     return rf"""% Generado por scripts/render.py desde cv.json. No editar a mano.
 \documentclass[10pt]{{article}}
@@ -133,23 +163,7 @@ def render_variant(cv: dict[str, Any], lang: str, profile_name: str) -> str:
 \section*{{\LblProfile}}
 {summary}
 
-% ---------- Experiencia ----------
-\section*{{\LblExperience}}
-{nl.join(experience)}
-
-% ---------- Habilidades ----------
-\section*{{\LblSkills}}
-{nl.join(skills)}
-
-% ---------- Educación ----------
-\section*{{\LblEducation}}
-{(nl + nl).join(education)}
-
-\begin{{center}}
-  {{\footnotesize\color{{ckSubtle}}\LblMore\ ---\ {more_link}}}
-\end{{center}}
-
-\end{{document}}
+{sections}{footer}\end{{document}}
 """
 
 

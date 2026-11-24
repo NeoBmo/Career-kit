@@ -78,6 +78,48 @@ class RenderVariantTests(unittest.TestCase):
         self.assertIn(r"\input{styles/modern.tex}", tex)
 
 
+class OptionalPartsTests(unittest.TestCase):
+    def test_without_more_there_is_no_footer(self) -> None:
+        cv = minimal_cv()
+        del cv["more"]
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertNotIn(r"\LblMore", tex)
+        self.assertNotIn(r"\begin{center}", tex)
+        self.assertIn(r"\end{document}", tex)
+
+    def test_with_more_the_footer_is_printed(self) -> None:
+        self.assertIn(r"\LblMore", render_variant(minimal_cv(), "es", "software-developer"))
+
+    def test_empty_sections_print_no_title(self) -> None:
+        for key, macro in (("experience", r"\LblExperience"), ("education", r"\LblEducation"),
+                           ("skills", r"\LblSkills")):
+            with self.subTest(section=key):
+                cv = minimal_cv()
+                cv[key] = []
+                tex = render_variant(cv, "es", "software-developer")
+                self.assertNotIn(rf"\section*{{{macro}}}", tex)
+                for other in (r"\LblProfile", r"\LblExperience", r"\LblSkills", r"\LblEducation"):
+                    if other != macro:
+                        self.assertIn(rf"\section*{{{other}}}", tex)
+
+    def test_highlight_starting_with_bracket_is_not_an_item_label(self) -> None:
+        cv = minimal_cv()
+        cv["experience"][0]["highlights"]["es"] = ["[Beta] Lancé la app.", "Normal."]
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertIn(r"\item{} [Beta] Lancé la app.", tex)
+        self.assertIn(r"\item Normal.", tex)
+
+    def test_line_breaks_are_collapsed(self) -> None:
+        self.assertEqual(escape("Ana\n\nPérez \t Gómez "), "Ana Pérez Gómez")
+        cv = minimal_cv()
+        cv["person"]["name"] = "Alex\n\nRivera"
+        cv["profiles"]["software-developer"]["title"]["es"] = "Desarrolladora\n\nde Software"
+        tex = render_variant(cv, "es", "software-developer")
+        hypersetup = tex.split(r"\hypersetup{", 1)[1].split("}\n\n", 1)[0]
+        self.assertNotIn("\n\n", hypersetup)
+        self.assertIn("pdftitle={Alex Rivera - Desarrolladora de Software}", tex)
+
+
 class RenderExampleTests(unittest.TestCase):
     def test_example_renders_one_file_per_variant_with_keywords(self) -> None:
         cv = json.loads((EXAMPLE / "cv.json").read_text(encoding="utf-8"))
