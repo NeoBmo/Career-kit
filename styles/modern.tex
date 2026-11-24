@@ -15,9 +15,25 @@
 \usepackage{needspace}
 
 % ---------- Tipografía ----------
-% Liberation Sans: métricamente compatible con Arial, disponible en el sistema.
-\setmainfont{Liberation Sans}
-\newfontfamily\headingfont{Liberation Sans}[BoldFont = {Liberation Sans Bold}]
+% Liberation Sans: métricamente compatible con Arial. Se carga desde assets/fonts/
+% (SIL OFL 1.1), así que el PDF es igual en cualquier máquina. La ruta es relativa
+% a la raíz del repo, desde donde compila build.sh.
+\setmainfont{LiberationSans}[
+  Path = assets/fonts/,
+  Extension = .ttf,
+  UprightFont = LiberationSans-Regular,
+  BoldFont = LiberationSans-Bold,
+  ItalicFont = LiberationSans-Italic,
+  BoldItalicFont = LiberationSans-BoldItalic
+]
+\newfontfamily\headingfont{LiberationSans}[
+  Path = assets/fonts/,
+  Extension = .ttf,
+  UprightFont = LiberationSans-Regular,
+  BoldFont = LiberationSans-Bold,
+  ItalicFont = LiberationSans-Italic,
+  BoldItalicFont = LiberationSans-BoldItalic
+]
 
 % ---------- Paleta ----------
 \definecolor{ckInk}{HTML}{1A1A1A}

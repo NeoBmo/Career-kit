@@ -1,254 +1,272 @@
 #!/usr/bin/env python3
-"""Generate a LaTeX CV from structured JSON data and optionally adapt it to a job description."""
+"""Adapta una variante de cv.json a una vacante y la renderiza con scripts/render.py.
+
+Uso:
+  py -m scripts.generate_cv content/<persona> --variant es/software-developer \
+      (--job-description "..." | --job-file vacante.txt) [--yes]
+
+Sin vacante no adapta: renderiza todas las variantes, igual que `scripts.render`.
+La adaptación sólo cambia el resumen y el orden o la selección de experiencias y de
+grupos de habilidades; el .tex sale del MISMO renderizador (RF-05). Las notas de
+revisión y la marca FALLBACK van sólo a la propuesta JSON y a la consola (RF-06).
+"""
 
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
+import re
+import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.cv_model import CvError, load_cv, text
 from scripts.env_loader import load_env
 from scripts.groq_client import adapt_with_groq
+from scripts.render import ROOT, render_person, render_variant
 
-REQUIRED_FIELDS = ["name", "location", "phone", "email", "title", "summary"]
+GROQ_NOTICE = """\
+AVISO DE PRIVACIDAD (Groq)
+Para adaptar tu hoja de vida con IA, el contenido de esta variante (perfil, experiencia
+y habilidades, con los nombres de las empresas) y el texto de la vacante se enviarán a Groq,
+un servicio de terceros que no controlamos, con tu propia clave de API. Groq lo
+trata según su política de privacidad: https://groq.com/privacy-policy
+Tu teléfono, tu correo, tu nombre y tu ubicación NO se envían: la IA no los necesita.
+Si no aceptas, se usa la adaptación local, que no sale de tu equipo."""
 
 
-def tex_escape(value: str) -> str:
-    replacements = {
-        "\\": r"\textbackslash{}",
-        "&": r"\&",
-        "%": r"\%",
-        "$": r"\$",
-        "#": r"\#",
-        "_": r"\_",
-        "{": r"\{",
-        "}": r"\}",
-        "~": r"\textasciitilde{}",
-        "^": r"\textasciicircum{}",
+# ---------- Vista de la variante ----------
+
+def _span(entry: dict[str, Any]) -> str:
+    end = entry["end"] or "actual"
+    return f"{entry['start']} -- {end}" if entry["start"] else end
+
+
+def variant_view(cv: dict[str, Any], lang: str, profile_name: str) -> dict[str, Any]:
+    """Lo que la IA puede ver: textos de un idioma, sin teléfono, correo, nombre ni ubicación.
+
+    Las experiencias y las habilidades llevan su `index` en cv.json: la IA responde con
+    índices y así no puede inventar entradas.
+    """
+    profile = cv["profiles"][profile_name]
+    return {
+        "language": lang,
+        "title": text(profile["title"], lang),
+        "summary": text(profile["summary"], lang),
+        "keywords": text(profile["keywords"], lang),
+        "experiences": [
+            {"index": i, "role": text(e["role"], lang), "organization": text(e["organization"], lang),
+             "dates": _span(e), "highlights": text(e["highlights"], lang)}
+            for i, e in enumerate(cv["experience"])],
+        "skills": [
+            {"index": i, "label": text(g["label"], lang), "items": text(g["items"], lang)}
+            for i, g in enumerate(cv["skills"])],
     }
-    result = str(value)
-    for old, new in replacements.items():
-        result = result.replace(old, new)
-    return result
 
 
-def validate_payload(payload: dict[str, Any]) -> None:
-    for field in REQUIRED_FIELDS:
-        if not payload.get(field):
-            raise ValueError(f"Missing required field: {field}")
-    if not isinstance(payload.get("experiences", []), list):
-        raise ValueError("'experiences' must be a list")
-    if not isinstance(payload.get("skills", []), list):
-        raise ValueError("'skills' must be a list")
-    if not isinstance(payload.get("education", []), list):
-        raise ValueError("'education' must be a list")
+# ---------- Adaptación local ----------
+
+def _terms(view: dict[str, Any]) -> list[str]:
+    """Términos del CV que se buscan en la vacante: keywords y habilidades sueltas."""
+    found: dict[str, str] = {}
+    candidates = list(view["keywords"])
+    for group in view["skills"]:
+        candidates.extend(re.split(r"[,()]", group["items"]))
+    for term in candidates:
+        term = term.strip()
+        if len(term) >= 2:
+            found.setdefault(term.lower(), term)
+    return list(found.values())
 
 
-def _extract_keywords(job_description: str, skills: list[str]) -> list[str]:
-    text = job_description.lower()
-    return [skill for skill in skills if skill.lower() in text]
+def _mentions(haystack: str, term: str) -> bool:
+    """El término aparece como palabra completa (así «SQL» no coincide con «PostgreSQL»)."""
+    return re.search(rf"(?<!\w){re.escape(term)}(?!\w)", haystack, flags=re.IGNORECASE) is not None
 
 
-def _resolve_text(value: Any, fallback: str) -> str:
-    if isinstance(value, str) and value.strip() and value.strip().upper() != "NO_INFO":
-        return value
-    return fallback
+def adapt_locally(view: dict[str, Any], job: str) -> dict[str, Any]:
+    """Adaptación determinista sin red. Devuelve la misma forma que Groq.
+
+    Sólo reordena y selecciona con coincidencias de palabras entre el CV y la vacante;
+    el resumen sólo añade una frase con términos que ya están en el CV.
+    """
+    matched = [t for t in _terms(view) if _mentions(job, t)]
+
+    def score(texts: list[str]) -> int:
+        blob = " ".join(texts)
+        return sum(1 for t in matched if _mentions(blob, t))
+
+    experiences = [(score([e["role"], *e["highlights"]]), e["index"]) for e in view["experiences"]]
+    relevant = [p for p in experiences if p[0] > 0] or experiences
+    # sorted es estable: a igual puntaje se conserva el orden original.
+    experience_order = [i for _, i in sorted(relevant, key=lambda p: -p[0])]
+
+    skills = [(score([g["label"], g["items"]]), g["index"]) for g in view["skills"]]
+    skills_order = [i for _, i in sorted(skills, key=lambda p: -p[0])]
+
+    summary = view["summary"]
+    if matched:
+        shown = ", ".join(matched[:6])
+        summary += (f" Experiencia relacionada con la vacante: {shown}." if view["language"] == "es"
+                    else f" Experience related to the role: {shown}.")
+    notes = ("Adaptación local: se reordenó por coincidencia de palabras con la vacante."
+             + (f" Términos encontrados: {', '.join(matched)}." if matched
+                else " No se encontraron términos del CV en la vacante; se conservó el orden."))
+    return {"summary": summary, "experience_order": experience_order,
+            "skills_order": skills_order, "notes": notes}
 
 
-def build_adaptation(payload: dict[str, Any], job_description: str | None = None, adaptation_data: dict[str, Any] | None = None) -> tuple[str, str, list[dict[str, Any]], list[str]]:
-    summary = payload.get("summary", "")
-    skills = payload.get("skills", [])
-    title = payload.get("title", "")
-    experiences = payload.get("experiences", [])
+# ---------- Aplicar y renderizar ----------
 
-    if job_description:
-        keywords = _extract_keywords(job_description, skills)
-        if keywords:
-            objective = f"{title} orientado a {', '.join(keywords)} y a la ejecución de soluciones web alineadas con la vacante."
-            adapted_summary = f"{summary} Enfocado en {', '.join(keywords)} para responder a las necesidades del puesto."
-        else:
-            objective = f"{title} orientado a fortalecer la adaptación del perfil a esta vacante."
-            adapted_summary = f"{summary} Adaptación orientada a resaltar experiencia relevante y coherente con la vacante."
+def apply_adaptation(cv: dict[str, Any], profile_name: str, result: dict[str, Any]) -> dict[str, Any]:
+    """Copia del cv con el resumen nuevo y las experiencias y habilidades en su nuevo orden.
 
-        adapted_experiences: list[dict[str, Any]] = []
-        for experience in experiences:
-            detail_text = " ".join(experience.get("details", []))
-            score = sum(1 for keyword in keywords if keyword.lower()
-                        in detail_text.lower())
-            if score > 0:
-                adapted_experiences.append(
-                    {**experience, "relevance_score": score})
-
-        if not adapted_experiences:
-            adapted_experiences = [
-                {**experience, "relevance_score": 1} for experience in experiences]
-
-        adapted_skills = [
-            skill for skill in skills if skill.lower() in job_description.lower()]
-        if not adapted_skills:
-            adapted_skills = skills
-    else:
-        objective = title
-        adapted_summary = summary
-        adapted_experiences = [{**experience, "relevance_score": 1}
-                               for experience in experiences]
-        adapted_skills = skills
-
-    if adaptation_data:
-        objective = _resolve_text(adaptation_data.get("objective"), objective)
-        adapted_summary = _resolve_text(
-            adaptation_data.get("summary"), adapted_summary)
-
-        ai_skills = adaptation_data.get("relevant_skills")
-        if isinstance(ai_skills, list) and ai_skills:
-            adapted_skills = [str(skill) for skill in ai_skills if str(
-                skill).strip() and str(skill).strip().upper() != "NO_INFO"]
-
-        ai_experiences = adaptation_data.get("relevant_experiences")
-        if isinstance(ai_experiences, list) and ai_experiences:
-            adapted_experiences = ai_experiences
-
-    return objective, adapted_summary, adapted_experiences, adapted_skills
+    El texto queda como cadena simple; render.py lo escapa para LaTeX igual que el resto,
+    así que lo que traiga la IA (`&`, `%`) no rompe la compilación.
+    """
+    adapted = copy.deepcopy(cv)
+    adapted["profiles"][profile_name]["summary"] = result["summary"]
+    adapted["experience"] = [cv["experience"][i] for i in result["experience_order"]]
+    adapted["skills"] = [cv["skills"][i] for i in result["skills_order"]]
+    return adapted
 
 
-def build_latex(payload: dict[str, Any], job_description: str | None = None, adaptation_data: dict[str, Any] | None = None) -> str:
-    name = tex_escape(payload["name"])
-    location = tex_escape(payload["location"])
-    phone = tex_escape(payload["phone"])
-    email = tex_escape(payload["email"])
-    title = tex_escape(payload["title"])
-    summary = tex_escape(payload["summary"])
-    keywords = tex_escape(payload.get("keywords", ""))
-    objective, adapted_summary, adapted_experiences, adapted_skills = build_adaptation(
-        payload, job_description, adaptation_data=adaptation_data)
-    objective = tex_escape(objective)
-    adapted_summary = tex_escape(adapted_summary)
-
-    review_notes = ""
-    if adaptation_data:
-        notes = adaptation_data.get("notes")
-        if isinstance(notes, str) and notes.strip():
-            review_notes = tex_escape(f"Revisar manualmente: {notes}")
-        else:
-            review_notes = tex_escape("Revisar manualmente antes de exportar.")
-
-    experience_blocks: list[str] = []
-    for item in adapted_experiences:
-        role = tex_escape(item.get("role", ""))
-        dates = tex_escape(item.get("dates", ""))
-        organization = tex_escape(item.get("organization", ""))
-        details = item.get("details", [])
-        block = [
-            f"\\ckEntry{{{role}}}{{{dates}}}{{{organization}}}{{}}", "\\begin{ckitems}"]
-        for detail in details:
-            block.append(f"  \\item {tex_escape(detail)}")
-        block.append("\\end{ckitems}")
-        experience_blocks.append("\n".join(block))
-
-    skill_items = "\n".join(
-        f"  \\item {tex_escape(skill)}" for skill in adapted_skills)
-
-    education_blocks: list[str] = []
-    for item in payload.get("education", []):
-        title_text = tex_escape(item.get("title", ""))
-        dates = tex_escape(item.get("dates", ""))
-        organization = tex_escape(item.get("organization", ""))
-        details = tex_escape(item.get("details", ""))
-        education_blocks.append(
-            f"\\ckEntry{{{title_text}}}{{{dates}}}{{{organization}}}{{{details}}}"
-        )
-
-    # Las notas de revisión sólo aparecen cuando hubo adaptación a una vacante.
-    review_block = f"\\section*{{Review notes}}\n{review_notes}\n" if review_notes else ""
-
-    # Cadena raw (rf): cada comando LaTeX lleva UNA barra. Con dos, LaTeX lee un salto
-    # de línea (\\) seguido de texto suelto y el documento no compila.
-    # build.sh compila desde la raíz del proyecto, así que las rutas son relativas a ella.
-    return rf"""\documentclass[10pt]{{article}}
-\input{{styles/modern.tex}}
-
-\newcommand{{\ckName}}{{{name}}}
-\newcommand{{\ckLocation}}{{{location}}}
-\newcommand{{\ckPhone}}{{{phone}}}
-\newcommand{{\ckEmail}}{{{email}}}
-\newcommand{{\ckProfileTitle}}{{{title}}}
-\newcommand{{\ckKeywords}}{{{keywords}}}
-
-\hypersetup{{
-  pdftitle={{{name} - {title}}},
-  pdfauthor={{{name}}},
-  pdfsubject={{{title}}},
-  pdfkeywords={{{keywords}}}
-}}
-
-\begin{{document}}
-
-\ckHeader{{{name}}}{{{title}}}{{{location} \textbar\ {phone} \textbar\ \href{{mailto:{email}}}{{{email}}}}}
-
-\vspace{{3pt}}
-
-\section*{{Perfil}}
-{adapted_summary}
-
-\section*{{Objetivo profesional}}
-{objective}
-
-\section*{{Experiencia}}
-{chr(10).join(experience_blocks)}
-
-\section*{{Habilidades}}
-\begin{{ckitems}}
-{skill_items}
-\end{{ckitems}}
-{review_block}\section*{{Educación}}
-{chr(10).join(education_blocks)}
-
-\end{{document}}
-"""
+def _is_interactive() -> bool:
+    return sys.stdin is not None and sys.stdin.isatty()
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate a LaTeX CV from JSON data")
-    parser.add_argument("--input", default="data/cv-data.json",
-                        help="Path to the JSON input file")
-    parser.add_argument("--output", default="builds/generated-cv.tex",
-                        help="Path to the generated LaTeX file")
-    parser.add_argument("--job-description", default="",
-                        help="Optional job description to adapt the CV")
-    return parser.parse_args()
+def confirm_send(assume_yes: bool) -> bool:
+    """RF-15: avisa de que el CV sale a Groq y pide «s». Sin --yes ni terminal, no envía."""
+    print(GROQ_NOTICE)
+    if assume_yes:
+        print("Se envía porque pasaste --yes.")
+        return True
+    if not _is_interactive():
+        print("Entrada no interactiva y sin --yes: no se envía nada a Groq.")
+        return False
+    try:
+        answer = input("¿Enviar a Groq? [s/N]: ")
+    except EOFError:
+        return False
+    return answer.strip().lower() == "s"
 
 
-def main() -> None:
+def _label(entry: dict[str, Any], lang: str) -> str:
+    return f"{text(entry['role'], lang)} @ {text(entry['organization'], lang)}"
+
+
+def _dropped(cv: dict[str, Any], lang: str, kept: list[int]) -> list[str]:
+    """Experiencias que la adaptación dejó fuera del CV."""
+    return [_label(e, lang) for i, e in enumerate(cv["experience"]) if i not in kept]
+
+
+def _proposal(cv: dict[str, Any], lang: str, profile: str, view: dict[str, Any], result: dict[str, Any],
+              source: str, fallback: bool, reason: str | None, tex: Path) -> dict[str, Any]:
+    kept = result["experience_order"]
+    notes = [result["notes"]] if result.get("notes") else []
+    notes.append("Revisa el resumen y el orden antes de enviar la hoja de vida.")
+    return {
+        "variant": f"{lang}/{profile}",
+        "fallback": fallback,
+        "fallback_reason": reason,
+        "source": source,
+        "tex": tex.as_posix(),
+        "changes": {
+            "summary": {"before": view["summary"], "after": result["summary"]},
+            "experience": [_label(cv["experience"][i], lang) for i in kept],
+            "experience_dropped": _dropped(cv, lang, kept),
+            "skills": [text(cv["skills"][i]["label"], lang) for i in result["skills_order"]],
+        },
+        "review_notes": notes,
+    }
+
+
+def adapt_person(person_dir: Path, variant: str, job: str, out_dir: Path, assume_yes: bool = False) -> Path:
+    """Adapta una variante a la vacante y escribe el .tex y su propuesta JSON. Devuelve el .tex."""
+    cv = load_cv(person_dir / "cv.json")
+    lang, _, profile = variant.partition("/")
+    if not any(v["lang"] == lang and v["profile"] == profile for v in cv["variants"]):
+        valid = ", ".join(f"{v['lang']}/{v['profile']}" for v in cv["variants"])
+        raise CvError([f"--variant: '{variant}' no existe en cv.json (variantes: {valid})"])
+    if not (ROOT / "lang" / f"{lang}.tex").is_file():
+        raise CvError([f"--variant: no existe lang/{lang}.tex"])
+
+    view = variant_view(cv, lang, profile)
     load_env()
-    args = parse_args()
-    input_path = Path(args.input)
-    output_path = Path(args.output)
+    source, fallback, reason = "local", False, None
+    result: dict[str, Any] | None = None
 
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input file not found: {input_path}")
-
-    payload = json.loads(input_path.read_text(encoding="utf-8"))
-    validate_payload(payload)
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if args.job_description:
-        proposal_data = adapt_with_groq(payload, args.job_description)
-        output_path.write_text(build_latex(
-            payload, job_description=args.job_description, adaptation_data=proposal_data), encoding="utf-8")
-        proposal_path = output_path.with_suffix(".proposal.json")
-        proposal_path.write_text(json.dumps(
-            proposal_data, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"Generated proposal summary at {proposal_path}")
+    if not os.getenv("GROQ_API_KEY"):
+        print("Aviso: no hay GROQ_API_KEY; se usa la adaptación local.")
+    elif confirm_send(assume_yes):
+        source = "groq"
+        try:
+            result = adapt_with_groq(view, job)
+        except Exception as exc:  # red, clave, HTTP o respuesta inválida: RF-06
+            source, fallback, reason = "local", True, f"{type(exc).__name__}: {exc}"
+            print(f"FALLBACK: Groq falló ({reason}). Se usa la adaptación local.", file=sys.stderr)
     else:
-        output_path.write_text(build_latex(
-            payload, job_description=args.job_description), encoding="utf-8")
+        print("Se usa la adaptación local; el CV no sale de tu equipo.")
 
-    print(f"Generated CV source at {output_path}")
+    if result is None:
+        result = adapt_locally(view, job)
+    adapted = apply_adaptation(cv, profile, result)
+    dropped = _dropped(cv, lang, result["experience_order"])
+    if dropped:
+        print("Experiencias omitidas en este CV adaptado (revisa que sea lo que quieres):")
+        for label in dropped:
+            print(f"  - {label}")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tex = out_dir / f"cv-{lang}-{profile}-vacante.tex"
+    tex.write_text(render_variant(adapted, lang, profile), encoding="utf-8", newline="\n")
+    proposal = tex.with_suffix(".proposal.json")
+    proposal.write_text(
+        json.dumps(_proposal(cv, lang, profile, view, result, source, fallback, reason, tex),
+                   ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    print(f"CV adaptado: {tex.as_posix()}")
+    print(f"Propuesta con los cambios y las notas de revisión: {proposal.as_posix()}")
+    return tex
+
+
+def parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Adapta una variante de cv.json a una vacante")
+    parser.add_argument("person", help="Carpeta de la persona, p. ej. content/example")
+    parser.add_argument("--variant", help="Variante a adaptar, p. ej. es/software-developer")
+    job = parser.add_mutually_exclusive_group()
+    job.add_argument("--job-description", help="Texto de la vacante")
+    job.add_argument("--job-file", help="Archivo de texto con la vacante")
+    parser.add_argument("--yes", action="store_true", help="Acepta enviar el CV a Groq sin preguntar")
+    parser.add_argument("--out", help="Carpeta de salida (por defecto builds/<persona>)")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+    args = parse_args(argv)
+    person_dir = Path(args.person)
+    out_dir = Path(args.out) if args.out else Path("builds") / person_dir.name
+    try:
+        job = args.job_description
+        if args.job_file:
+            job = Path(args.job_file).read_text(encoding="utf-8-sig")
+        if not job or not job.strip():
+            # Sin vacante no se adapta: mismo resultado que `render`.
+            for path in render_person(person_dir, out_dir):
+                print(path.as_posix())
+            return 0
+        if not args.variant:
+            raise CvError(["--variant: indica la variante a adaptar, p. ej. es/software-developer"])
+        adapt_person(person_dir, args.variant, job, out_dir, assume_yes=args.yes)
+    except (CvError, OSError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

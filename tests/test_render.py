@@ -1,0 +1,193 @@
+import json
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+from scripts.render import escape, render_person, render_variant
+from test_cv_model import minimal_cv
+
+ROOT = Path(__file__).resolve().parents[1]
+EXAMPLE = ROOT / "content" / "example"
+
+
+class EscapeTests(unittest.TestCase):
+    def test_each_special_character(self) -> None:
+        expected = {
+            "&": r"\&",
+            "%": r"\%",
+            "$": r"\$",
+            "#": r"\#",
+            "_": r"\_",
+            "{": r"\{",
+            "}": r"\}",
+            "~": r"\textasciitilde{}",
+            "^": r"\textasciicircum{}",
+        }
+        for char, tex in expected.items():
+            with self.subTest(char=char):
+                self.assertEqual(escape(f"a{char}b"), f"a{tex}b")
+
+    def test_lone_backslash_has_no_extra_braces(self) -> None:
+        self.assertEqual(escape("\\"), r"\textbackslash{}")
+
+    def test_escape_is_a_single_pass(self) -> None:
+        self.assertEqual(escape("\\{}"), r"\textbackslash{}\{\}")
+
+    def test_dashes_and_accents_stay_as_is(self) -> None:
+        self.assertEqual(escape("Diseño — código"), "Diseño — código")
+
+
+class RenderVariantTests(unittest.TestCase):
+    def test_email_with_underscore_inside_href(self) -> None:
+        cv = minimal_cv()
+        cv["person"]["email"] = "alex_rivera@example.com"
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertIn(r"\href{mailto:alex_rivera@example.com}{alex\_rivera@example.com}", tex)
+
+    def test_url_escapes_only_percent_and_hash(self) -> None:
+        cv = minimal_cv()
+        cv["more"]["url"] = "https://example.com/a_b?x=1%20#top"
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertIn(r"\href{https://example.com/a_b?x=1\%20\#top}{example.com}", tex)
+
+    def test_null_end_is_present_label(self) -> None:
+        tex = render_variant(minimal_cv(), "es", "software-developer")
+        self.assertIn(r"\ckEntry{Desarrolladora}{2023 -- \LblPresent}{Freelance}{}", tex)
+
+    def test_education_without_start_shows_only_end(self) -> None:
+        tex = render_variant(minimal_cv(), "es", "software-developer")
+        self.assertIn(r"\ckEntry{Técnica}{2021}{Instituto}{}", tex)
+
+    def test_experience_with_a_single_date(self) -> None:
+        cv = minimal_cv()
+        cv["experience"][0]["start"] = None
+        cv["experience"][0]["end"] = "2021"
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertIn(r"\ckEntry{Desarrolladora}{2021}{Freelance}{}", tex)
+
+    def test_optional_subtitle_is_fourth_argument(self) -> None:
+        cv = minimal_cv()
+        cv["experience"][0]["subtitle"] = {"es": "Proyecto & piloto"}
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertIn(r"{Freelance}{Proyecto \& piloto}", tex)
+
+    def test_preamble_inputs_lang_and_style_from_repo_root(self) -> None:
+        tex = render_variant(minimal_cv(), "es", "software-developer")
+        self.assertIn(r"\input{lang/es.tex}", tex)
+        self.assertIn(r"\input{styles/modern.tex}", tex)
+
+
+class OptionalPartsTests(unittest.TestCase):
+    def test_without_more_there_is_no_footer(self) -> None:
+        cv = minimal_cv()
+        del cv["more"]
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertNotIn(r"\LblMore", tex)
+        self.assertNotIn(r"\begin{center}", tex)
+        self.assertIn(r"\end{document}", tex)
+
+    def test_with_more_the_footer_is_printed(self) -> None:
+        self.assertIn(r"\LblMore", render_variant(minimal_cv(), "es", "software-developer"))
+
+    def test_empty_sections_print_no_title(self) -> None:
+        for key, macro in (("experience", r"\LblExperience"), ("education", r"\LblEducation"),
+                           ("skills", r"\LblSkills")):
+            with self.subTest(section=key):
+                cv = minimal_cv()
+                cv[key] = []
+                tex = render_variant(cv, "es", "software-developer")
+                self.assertNotIn(rf"\section*{{{macro}}}", tex)
+                for other in (r"\LblProfile", r"\LblExperience", r"\LblSkills", r"\LblEducation"):
+                    if other != macro:
+                        self.assertIn(rf"\section*{{{other}}}", tex)
+
+    def test_highlight_starting_with_bracket_is_not_an_item_label(self) -> None:
+        cv = minimal_cv()
+        cv["experience"][0]["highlights"]["es"] = ["[Beta] Lancé la app.", "Normal."]
+        tex = render_variant(cv, "es", "software-developer")
+        self.assertIn(r"\item{} [Beta] Lancé la app.", tex)
+        self.assertIn(r"\item Normal.", tex)
+
+    def test_line_breaks_are_collapsed(self) -> None:
+        self.assertEqual(escape("Ana\n\nPérez \t Gómez "), "Ana Pérez Gómez")
+        cv = minimal_cv()
+        cv["person"]["name"] = "Alex\n\nRivera"
+        cv["profiles"]["software-developer"]["title"]["es"] = "Desarrolladora\n\nde Software"
+        tex = render_variant(cv, "es", "software-developer")
+        hypersetup = tex.split(r"\hypersetup{", 1)[1].split("}\n\n", 1)[0]
+        self.assertNotIn("\n\n", hypersetup)
+        self.assertIn("pdftitle={Alex Rivera - Desarrolladora de Software}", tex)
+
+
+class RenderExampleTests(unittest.TestCase):
+    def test_example_renders_one_file_per_variant_with_keywords(self) -> None:
+        cv = json.loads((EXAMPLE / "cv.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as out:
+            written = render_person(EXAMPLE, out)
+            self.assertEqual(len(written), 3)
+            for variant in cv["variants"]:
+                lang, profile = variant["lang"], variant["profile"]
+                path = Path(out) / f"cv-{lang}-{profile}.tex"
+                self.assertIn(path, written)
+                tex = path.read_text(encoding="utf-8")
+                keywords = cv["profiles"][profile]["keywords"][lang]
+                with self.subTest(variant=path.name):
+                    self.assertIn(f"pdfkeywords={{{', '.join(keywords)}}}", tex)
+                    # Cada keyword debe estar también en el cuerpo, que es lo que lee un ATS.
+                    body = tex.split(r"\begin{document}", 1)[1]
+                    for keyword in keywords:
+                        self.assertIn(keyword, body)
+
+
+def files_to_scan(names: list[str]) -> list[str]:
+    """Archivos que el test de privacidad revisa: todo salvo el CV de cada persona.
+
+    En una copia privada, content/<persona>/ lleva datos reales a propósito; sólo
+    content/example/ es ficticio y debe estar limpio.
+    """
+    return [n for n in names if not n.startswith("content/") or n.startswith("content/example/")]
+
+
+class FilesToScanTests(unittest.TestCase):
+    def test_other_persons_content_is_ignored(self) -> None:
+        names = ["README.md", "content/example/cv.json", "content/otra-persona/cv.json",
+                 "content/private/cv.json"]
+        self.assertEqual(files_to_scan(names), ["README.md", "content/example/cv.json"])
+
+    def test_simulated_person_with_personal_data_is_not_scanned(self) -> None:
+        # Datos «personales» simulados, partidos y cortos para que ni este test ni privacy_check
+        # los detecten en este archivo; basta con que contengan las agujas prohibidas.
+        fake = '{"email": "ana' + "@" + 'gmail", "phone": "+57' + ' 3"}'
+        with tempfile.TemporaryDirectory() as tmp:
+            person = Path(tmp) / "content" / "otra-persona"
+            person.mkdir(parents=True)
+            (person / "cv.json").write_text(fake, encoding="utf-8")
+            scanned = files_to_scan(["content/otra-persona/cv.json"])
+        self.assertEqual(scanned, [])
+        self.assertTrue(any(n.encode() in fake.encode() for n in NoPersonalDataTests.FORBIDDEN))
+
+
+class NoPersonalDataTests(unittest.TestCase):
+    # Partidos en dos para que este archivo no se detecte a sí mismo.
+    FORBIDDEN = ("@" + "gmail", "+57" + " 3")
+
+    def test_versioned_files_have_no_personal_data(self) -> None:
+        try:
+            listed = subprocess.run(
+                ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+                cwd=ROOT, capture_output=True, check=True).stdout
+        except (OSError, subprocess.CalledProcessError):
+            self.skipTest("git no disponible")
+        for name in filter(None, listed.decode("utf-8").split("\0")):
+            path = ROOT / name
+            if not path.is_file():
+                continue
+            content = path.read_bytes()
+            for needle in self.FORBIDDEN:
+                with self.subTest(file=name, needle=needle):
+                    self.assertFalse(needle.encode("utf-8") in content, f"{name} contiene {needle!r}")
+
+
+if __name__ == "__main__":
+    unittest.main()
