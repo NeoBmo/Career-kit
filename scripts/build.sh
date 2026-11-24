@@ -56,7 +56,7 @@ run_xelatex () {
         -v "$(cygpath -w "$PWD"):/work" -w /work "$IMAGE" "${args[@]}"
       ;;
     *)
-      docker run --rm --network none -v "$PWD:/work" -w /work "$IMAGE" "${args[@]}"
+      docker run --rm --user "$(id -u):$(id -g)" --network none -v "$PWD:/work" -w /work "$IMAGE" "${args[@]}"
       ;;
   esac
 }

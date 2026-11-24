@@ -1,6 +1,5 @@
-# Contenido personal: sólo el ejemplo ficticio entra en git.
-content/*
-!content/example/
+# Contenido personal: sólo content/private/ queda fuera de git.
+content/private/
 
 # Fuentes antiguas con datos personales (se migran a content/private/).
 data/
