@@ -30,7 +30,9 @@ from scripts.render import ROOT, render_person, render_variant
 GROQ_NOTICE = """\
 AVISO DE PRIVACIDAD (Groq)
 Para adaptar tu hoja de vida con IA, el contenido de esta variante (perfil, experiencia
-y habilidades) se enviará a Groq, un servicio de terceros que no controlamos.
+y habilidades, con los nombres de las empresas) se enviará a Groq,
+un servicio de terceros que no controlamos, con tu propia clave de API. Groq lo
+trata según su política de privacidad: https://groq.com/privacy-policy
 Tu teléfono, tu correo, tu nombre y tu ubicación NO se envían: la IA no los necesita.
 Si no aceptas, se usa la adaptación local, que no sale de tu equipo."""
 
