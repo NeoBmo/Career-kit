@@ -1,0 +1,144 @@
+{
+  "person": {
+    "name": "Alex Rivera",
+    "location": {"es": "Medellín, Colombia", "en": "Medellín, Colombia"},
+    "phone": "+00 000 000 0000",
+    "email": "alex@example.com"
+  },
+  "more": {"label": "example.com", "url": "https://example.com"},
+  "profiles": {
+    "software-developer": {
+      "title": {"es": "Desarrolladora de Software", "en": "Software Developer"},
+      "summary": {
+        "es": "Desarrolladora de software con cuatro años construyendo aplicaciones web para comercios y equipos pequeños. Trabajo de punta a punta: interfaces con React y TypeScript, APIs REST con Node.js y bases de datos SQL. Antes de escribir código busco entender el problema del negocio, y después dejo pruebas automatizadas y decisiones documentadas para que el sistema se pueda mantener sin mí.",
+        "en": "Software developer with four years building web applications for retailers and small teams. I work end to end: React and TypeScript interfaces, Node.js REST APIs and SQL databases. Before writing code I make sure I understand the business problem, and afterwards I leave automated tests and documented decisions so the system can be maintained without me."
+      },
+      "keywords": {
+        "es": ["React", "TypeScript", "Node.js", "SQL", "APIs REST", "Git"],
+        "en": ["React", "TypeScript", "Node.js", "SQL", "REST APIs", "Git"]
+      }
+    },
+    "frontend-developer": {
+      "title": {"es": "Desarrolladora Frontend", "en": "Frontend Developer"},
+      "summary": {
+        "es": "Desarrolladora frontend enfocada en interfaces rápidas y accesibles. Convierto diseños de Figma en componentes reutilizables con React, TypeScript y Tailwind CSS, cuidando el rendimiento, la accesibilidad según WCAG y el diseño responsive. Mido antes de optimizar y documento cada componente para que el equipo lo pueda reutilizar con confianza.",
+        "en": "Frontend developer focused on fast, accessible interfaces. I turn Figma designs into reusable components with React, TypeScript and Tailwind CSS, paying attention to performance, WCAG accessibility and responsive design. I measure before optimizing and document every component so the team can reuse it with confidence."
+      },
+      "keywords": {
+        "es": ["React", "TypeScript", "JavaScript", "Tailwind CSS", "Figma", "WCAG"],
+        "en": ["React", "TypeScript", "JavaScript", "Tailwind CSS", "Figma", "WCAG"]
+      }
+    }
+  },
+  "experience": [
+    {
+      "role": {"es": "Desarrolladora de Software", "en": "Software Developer"},
+      "organization": "Freelance",
+      "start": "2023",
+      "end": null,
+      "highlights": {
+        "es": [
+          "Una tienda de ropa perdía pedidos porque los gestionaba por chat; construí su tienda en línea con React, Node.js y una base de datos SQL, y el 70 % de los pedidos pasó a entrar sin intervención manual.",
+          "Tres clientes llevaban el inventario en hojas de cálculo que no cuadraban con las ventas; diseñé APIs REST que sincronizan ambos datos y el cierre semanal pasó de un día a medio día.",
+          "Los despliegues se hacían a mano y fallaban a menudo; configuré GitHub Actions con pruebas automatizadas en Jest y pasé de dos incidentes al mes a ninguno en el último semestre."
+        ],
+        "en": [
+          "A clothing store was losing orders because it handled them over chat; I built its online store with React, Node.js and a SQL database, and 70% of orders started arriving with no manual work.",
+          "Three clients kept their inventory in spreadsheets that did not match their sales; I designed REST APIs that keep both in sync, and the weekly close went from a full day to half a day.",
+          "Deployments were manual and often failed; I set up GitHub Actions with automated Jest tests and went from two incidents a month to none in the last six months."
+        ]
+      }
+    },
+    {
+      "role": {"es": "Desarrolladora Frontend", "en": "Frontend Developer"},
+      "organization": "Nodo Comercio S.A.S.",
+      "start": "2021",
+      "end": "2023",
+      "highlights": {
+        "es": [
+          "El catálogo tardaba más de 5 segundos en cargar en móvil; migré las vistas a React con TypeScript y carga diferida de imágenes, y el tiempo bajó a 1,8 segundos.",
+          "Diseño entregaba en Figma sin un sistema común y cada página se maquetaba desde cero; armé una librería de componentes con Tailwind CSS que redujo un 40 % el tiempo de maquetación.",
+          "Una auditoría encontró fallas de accesibilidad en el proceso de pago; corregí contraste, foco y etiquetas según WCAG 2.1 AA, y el sitio pasó la revisión siguiente sin observaciones."
+        ],
+        "en": [
+          "The catalog took more than 5 seconds to load on mobile; I migrated the views to React with TypeScript and lazy-loaded images, and load time dropped to 1.8 seconds.",
+          "Design handed off Figma files with no shared system, so every page was built from scratch; I created a Tailwind CSS component library that cut layout time by 40%.",
+          "An audit found accessibility issues in the checkout flow; I fixed contrast, focus and labels following WCAG 2.1 AA, and the site passed the next review with no findings."
+        ]
+      }
+    },
+    {
+      "role": {"es": "Practicante de Desarrollo Web", "en": "Web Development Intern"},
+      "organization": "Estudio Faro",
+      "start": "2020",
+      "end": "2021",
+      "highlights": {
+        "es": [
+          "El estudio publicaba sitios en JavaScript sin control de versiones y se perdían cambios entre entregas; introduje Git y revisiones de código entre pares, y no volvió a perderse trabajo.",
+          "El equipo administrativo armaba a mano los reportes mensuales; los automaticé con Python y SQL y liberé unas cuatro horas de trabajo por semana."
+        ],
+        "en": [
+          "The studio shipped JavaScript sites without version control and lost changes between releases; I introduced Git and peer code reviews, and no work was lost again.",
+          "The admin team built monthly reports by hand; I automated them with Python and SQL and freed about four hours of work per week."
+        ]
+      }
+    }
+  ],
+  "skills": [
+    {
+      "label": {"es": "Frontend", "en": "Frontend"},
+      "items": {
+        "es": "HTML, CSS, JavaScript, TypeScript, React, Next.js, Tailwind CSS",
+        "en": "HTML, CSS, JavaScript, TypeScript, React, Next.js, Tailwind CSS"
+      }
+    },
+    {
+      "label": {"es": "Backend & datos", "en": "Backend & Data"},
+      "items": {
+        "es": "Node.js, Express, APIs REST, SQL, PostgreSQL, Python",
+        "en": "Node.js, Express, REST APIs, SQL, PostgreSQL, Python"
+      }
+    },
+    {
+      "label": {"es": "Calidad", "en": "Quality"},
+      "items": {
+        "es": "pruebas con Jest y Testing Library, accesibilidad (WCAG), rendimiento web",
+        "en": "testing with Jest and Testing Library, accessibility (WCAG), web performance"
+      }
+    },
+    {
+      "label": {"es": "Herramientas", "en": "Tools"},
+      "items": {
+        "es": "Git, GitHub Actions, Docker, Figma, VS Code",
+        "en": "Git, GitHub Actions, Docker, Figma, VS Code"
+      }
+    }
+  ],
+  "education": [
+    {
+      "title": {"es": "Tecnología en Desarrollo de Software", "en": "Software Development Technologist"},
+      "organization": "Politécnico Ciudad Verde",
+      "start": "2018",
+      "end": "2020",
+      "details": {
+        "es": "Fundamentos de programación, bases de datos relacionales, desarrollo web y metodologías ágiles. Proyecto de grado: aplicación de reservas para un gimnasio de barrio con React y Node.js.",
+        "en": "Programming fundamentals, relational databases, web development and agile methods. Capstone project: a booking app for a neighborhood gym built with React and Node.js."
+      }
+    },
+    {
+      "title": {"es": "Formación continua", "en": "Continuing Education"},
+      "organization": {"es": "Autodidacta", "en": "Self-taught"},
+      "start": null,
+      "end": null,
+      "details": {
+        "es": "Cursos en línea de TypeScript, accesibilidad web y arquitectura frontend, que pongo en práctica con proyectos propios publicados en GitHub.",
+        "en": "Online courses in TypeScript, web accessibility and frontend architecture, which I put into practice with personal projects published on GitHub."
+      }
+    }
+  ],
+  "variants": [
+    {"lang": "es", "profile": "software-developer"},
+    {"lang": "en", "profile": "software-developer"},
+    {"lang": "es", "profile": "frontend-developer"}
+  ]
+}
