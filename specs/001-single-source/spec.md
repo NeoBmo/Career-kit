@@ -65,6 +65,15 @@ para personas en Colombia que no programan.
 - RF-15: ANTES de enviar un CV a Groq, EL SISTEMA avisará de que el contenido sale a
   un tercero y pedirá confirmación en la CLI.
 
+### Añadidos en el cierre (2026-11-24)
+
+- RF-16: SI una copia de la plantilla es pública, ENTONCES EL SISTEMA hará fallar la
+  CI con un aviso en español que explica cómo volverla privada.
+- RF-17: EL SISTEMA no imprimirá el pie si no hay `more`, ni una sección vacía, ni
+  su título: así sirve también a quien busca su primer empleo.
+- RF-18: EL SISTEMA sólo aceptará minúsculas, números y guiones en los nombres de
+  idioma y perfil, porque forman rutas de archivo.
+
 ## Criterios de aceptación
 
 - [ ] `py -m unittest discover -s tests` pasa, con tests del renderizador, del escape
@@ -74,7 +83,9 @@ para personas en Colombia que no programan.
 - [ ] Antes de migrar se congela una línea base: las cuatro variantes reales
       compiladas desde las fuentes LaTeX actuales y su texto con `pdftotext`. Después,
       el texto de las variantes generadas desde `cv.json` coincide con esa línea base,
-      salvo estas diferencias aceptadas: espacios y saltos de línea.
+      salvo estas diferencias aceptadas: espacios y saltos de línea; el guionado de
+      una palabra en inglés; y dos fechas que en la línea base se salían de la página
+      («Presente» cortado y un año que no se veía) y ahora aparecen completas.
 - [ ] Ningún archivo versionado contiene el teléfono, el correo, la ubicación, los
       enlaces personales ni las empresas del CV real. El nombre del autor sí puede
       aparecer, en la firma y la licencia.
