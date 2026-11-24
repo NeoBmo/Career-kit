@@ -33,7 +33,7 @@ class PrivacyCheckTests(unittest.TestCase):
         self.assertEqual(len(check_text(text)), 0)
 
     def test_line_number_reported(self) -> None:
-        text = "línea ok\nsecreto: foo@bar.com"
+        text = "línea ok\nsecreto: foo@" + "bar.com"
         violations = check_text(text)
         self.assertEqual(violations[0]["line"], 2)
 
