@@ -13,7 +13,9 @@ pueda leerlos. No es un editor visual: hay un solo diseño y los datos se escrib
 JSON.
 
 Estado al 2026-11-24: funciona en local, compilando con Docker. La integración
-continua (CI) está escrita, pero todavía no ha corrido en GitHub.
+continua (CI) está escrita, pero todavía no ha corrido en GitHub. La plantilla se
+publicará cuando la CI se haya probado allí; mientras tanto, el camino es
+[compilar en tu equipo](#en-tu-equipo).
 
 ![Primera página del CV de ejemplo: encabezado con nombre y cargo, y las secciones Perfil, Experiencia, Habilidades y Educación en una sola columna](assets/preview-es.png)
 
@@ -25,6 +27,10 @@ continua (CI) está escrita, pero todavía no ha corrido en GitHub.
 Todo corre en GitHub, desde el navegador. La [guía paso a paso](docs/guia.md) está
 escrita para quien no programa.
 
+> **Aún no disponible:** la plantilla no está publicada, así que estos pasos todavía no
+> funcionan. Usa [En tu equipo](#en-tu-equipo) hasta que se publique.
+
+0. [Crea tu cuenta de GitHub](docs/guia.md#paso-0-crea-tu-cuenta-de-github), si no la tienes.
 1. [Crea tu copia **privada**](docs/guia.md#paso-1-crea-tu-copia-privada) desde la plantilla.
 2. [Copia `content/example` y edita tu `cv.json`](docs/guia.md#paso-2-crea-tu-carpeta-y-edita-tu-cvjson) en el navegador.
 3. [Descarga tus PDF](docs/guia.md#paso-3-descarga-tus-pdf) de la pestaña «Actions».
@@ -46,9 +52,10 @@ Los comandos se lanzan desde la raíz del repo y con `-m`. En macOS y Linux escr
 |---|---|
 | `bash scripts/build.sh content/<persona>` | Genera los `.tex` y compila los PDF en `builds/<persona>/out/`. Sin argumento usa `content/example` |
 | `py -m scripts.render content/<persona>` | Valida el `cv.json` y genera sólo los `.tex`, en `builds/<persona>/` |
-| `py -m scripts.check_all content/<persona>` | Comprueba el ATS de cada PDF ya compilado en `builds/<persona>/out/`. Sale con 1 si alguno falla |
+| `py -m scripts.check_all content/<persona>` | Comprueba el ATS de cada PDF ya compilado en `builds/<persona>/out/`: texto, keywords y orden de las secciones. Sale con 1 si alguno falla |
 | `py -m scripts.cli` | Menú: generar tus hojas de vida o adaptar una a una vacante |
 | `py -m scripts.generate_cv content/example --variant es/software-developer --job-file vacante.txt` | Adapta esa variante a la vacante y escribe `builds/example/cv-es-software-developer-vacante.tex` y su `.proposal.json` |
+| `py -m scripts.ats_check <pdf> --lang es --keywords "React,SQL"` | Comprueba un solo PDF: texto legible, keywords y orden de las secciones (títulos de `lang/es.tex`). Con `--sections "A,B"` das los títulos a mano |
 | `py -m unittest discover -s tests` | Corre los tests |
 | `py -m scripts.privacy_check` | Busca correos y teléfonos reales en los archivos que git versiona |
 
@@ -70,9 +77,12 @@ Detalles de la adaptación a una vacante:
 
 - Sólo `content/private/` queda fuera de git (`.gitignore`). Cualquier otra carpeta de
   `content/` se versiona, así que si guardas tu hoja de vida ahí, la copia del
-  repositorio debe ser privada.
+  repositorio debe ser privada. Cuándo usar cada carpeta:
+  [guía](docs/guia.md#si-prefieres-no-subir-tu-hoja-de-vida).
 - La CI compila cada `content/*/` con un `cv.json`, salvo `private`. Una carpeta con
   ese nombre no genera PDF en GitHub.
+- En una copia de la plantilla, el job `copia-publica` de la CI falla en rojo si la
+  copia es pública. No bloquea la compilación de los PDF: es un aviso.
 - Tu `.env` con la clave de Groq también está ignorado por git.
 - **A Groq se envía** (sólo si aceptas): el título, el resumen y las keywords del perfil;
   de cada experiencia, el cargo, la organización, las fechas y los logros; las
@@ -119,8 +129,12 @@ Cada elemento de `variants` es un PDF: un idioma (`es` o `en`) y un perfil de
 <details>
 <summary>Reglas del formato</summary>
 
-- Campos de primer nivel, todos obligatorios: `person`, `more`, `profiles`,
-  `experience`, `skills`, `education` y `variants`.
+- Campos de primer nivel obligatorios: `person`, `profiles`, `experience`, `skills`,
+  `education` y `variants`. `more` (el pie «Conoce más») es opcional: sin él no sale el
+  pie. Con `more`, `label` y `url` son obligatorios.
+- `experience`, `skills` y `education` pueden ser listas vacías (`[]`): la sección no se
+  imprime. Cada entrada de `education` necesita `details`.
+- Los nombres de `lang` y de perfil sólo admiten `^[a-z0-9-]+$`.
 - Un texto traducible es una cadena (vale para todos los idiomas) o un objeto
   `{"es": "...", "en": "..."}`. Lo mismo para las listas de `highlights` y `keywords`.
   Si una variante usa un idioma, todo objeto traducible que use debe tenerlo.
@@ -134,7 +148,8 @@ Cada elemento de `variants` es un PDF: un idioma (`es` o `en`) y un perfil de
 - No hace falta escapar `&`, `%`, `$`, `#`, `_` ni otros caracteres especiales de
   LaTeX: el renderizador lo hace.
 - Las `keywords` de un perfil se buscan en el texto del PDF: si falta una, la
-  comprobación ATS falla.
+  comprobación ATS falla. También falla si los títulos de sección no salen en su orden
+  (Perfil, Experiencia, Habilidades, Educación; las secciones vacías no cuentan).
 - Cada idioma necesita su `lang/<idioma>.tex` (hoy `es` y `en`).
 
 </details>
@@ -143,8 +158,8 @@ Cada elemento de `variants` es un PDF: un idioma (`es` o `en`) y un perfil de
 <summary>Estructura del repo</summary>
 
 ```
-content/example/    cv.json de la persona ficticia; la única que se versiona
-content/private/    tu hoja de vida real en local; ignorada por git
+content/example/    cv.json de la persona ficticia
+content/private/    tu hoja de vida real en local; es la única carpeta que git ignora
 docs/               guia.md (paso a paso) y hoja-de-vida-colombia.md
 lang/               es.tex y en.tex: etiquetas de la plantilla («Experiencia», «Presente»)
 styles/             modern.tex: tipografía, color y espaciado
@@ -154,7 +169,7 @@ schemas/            esquema de la respuesta esperada de Groq
 tests/              tests de unittest
 assets/             banner.svg, preview-es.png y fonts/ (Liberation Sans)
 specs/              spec, plan y tareas de la fuente única
-.github/workflows/  ci.yml: tests, privacidad, compilación y ATS
+.github/workflows/  ci.yml: tests, privacidad, copia-publica, compilación y ATS
 Makefile            atajos: make build PERSON=content/<persona>, make list, make clean
 .env.example        plantilla de variables de Groq
 builds/             salida generada (ignorada por git)

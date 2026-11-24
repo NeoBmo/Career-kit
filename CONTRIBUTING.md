@@ -30,8 +30,8 @@ empresas reales. En ejemplos, tests y documentación usa `+00 000 000 0000` y
 `example.com`. La persona de `content/example/` es ficticia; tu hoja de vida real va en
 `content/private/`, que git ignora.
 
-La comprobación de privacidad falla con cualquier correo que no sea de `example.com` y
-con cualquier teléfono de 10 o más dígitos distinto del ficticio.
+La comprobación de privacidad falla con cualquier correo que no sea de `example.com` ni
+contenga `noreply`, y con cualquier teléfono de 10 o más dígitos distinto del ficticio.
 
 ## Idioma
 
