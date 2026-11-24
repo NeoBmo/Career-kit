@@ -1,0 +1,32 @@
+# Contenido personal: sólo el ejemplo ficticio entra en git.
+content/*
+!content/example/
+
+# Fuentes antiguas con datos personales (se migran a content/private/).
+data/
+config/
+sections/
+main.tex
+
+# Salidas generadas: se regeneran con build.sh.
+builds/
+
+# Artefactos de compilación LaTeX
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.toc
+*.buildlog
+
+# Python
+__pycache__/
+*.pyc
+
+# Variables de entorno y credenciales
+.env
+.env.*
+!.env.example
+*.env

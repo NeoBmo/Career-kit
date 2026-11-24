@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" role="img" aria-labelledby="t d">
+  <title id="t">Career Kit</title>
+  <desc id="d">Una hoja fuente a la izquierda se ramifica en cuatro hojas de CV, cada una con su idioma y perfil.</desc>
+  <style>
+    /* Colores de styles/modern.tex: ckInk, ckSubtle, ckAccent y ckRule. */
+    :root { --bg: #f7f7f5; --ink: #1a1a1a; --subtle: #5b5b5b; --accent: #1f5fbf; --rule: #d8d8d8; --paper: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #141414; --ink: #f2f2f2; --subtle: #a6a6a6; --accent: #6f9ee8; --rule: #3a3a3a; --paper: #1e1e1e; }
+    }
+    .sans { font-family: "Liberation Sans", Arial, Helvetica, sans-serif; }
+    .sheet { opacity: 0; animation: in .5s ease-out forwards; }
+    .s2 { animation-delay: .15s; } .s3 { animation-delay: .3s; } .s4 { animation-delay: .45s; }
+    @keyframes in { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { .sheet { animation: none; opacity: 1; } }
+  </style>
+  <rect width="1280" height="360" rx="16" fill="var(--bg)"/>
+  <g class="sans">
+    <text x="88" y="158" fill="var(--ink)" font-size="64" font-weight="700">Career Kit</text>
+    <text x="88" y="208" fill="var(--subtle)" font-size="28">Una fuente, muchas variantes de CV</text>
+    <rect x="88" y="232" width="120" height="4" fill="var(--accent)"/>
+  </g>
+  <!-- Hoja fuente -->
+  <g>
+    <rect x="760" y="110" width="110" height="140" rx="6" fill="var(--paper)" stroke="var(--accent)" stroke-width="2"/>
+    <rect x="778" y="132" width="60" height="8" rx="2" fill="var(--accent)"/>
+    <rect x="778" y="152" width="74" height="4" fill="var(--rule)"/>
+    <rect x="778" y="164" width="66" height="4" fill="var(--rule)"/>
+    <rect x="778" y="176" width="74" height="4" fill="var(--rule)"/>
+    <rect x="778" y="188" width="52" height="4" fill="var(--rule)"/>
+  </g>
+  <!-- Ramas hacia las variantes -->
+  <path d="M870 180 C 930 180, 930 70, 990 70 M870 180 C 930 180, 930 150, 990 146 M870 180 C 930 180, 930 210, 990 222 M870 180 C 930 180, 930 290, 990 298" fill="none" stroke="var(--rule)" stroke-width="2"/>
+  <!-- Cuatro variantes: idioma y perfil -->
+  <g class="sans" font-size="15" fill="var(--subtle)">
+    <g class="sheet"><rect x="990" y="44" width="200" height="52" rx="6" fill="var(--paper)" stroke="var(--rule)"/><text x="1006" y="76">es · software</text></g>
+    <g class="sheet s2"><rect x="990" y="120" width="200" height="52" rx="6" fill="var(--paper)" stroke="var(--rule)"/><text x="1006" y="152">es · frontend</text></g>
+    <g class="sheet s3"><rect x="990" y="196" width="200" height="52" rx="6" fill="var(--paper)" stroke="var(--rule)"/><text x="1006" y="228">es · react</text></g>
+    <g class="sheet s4"><rect x="990" y="272" width="200" height="52" rx="6" fill="var(--paper)" stroke="var(--rule)"/><text x="1006" y="304">en · software</text></g>
+  </g>
+</svg>

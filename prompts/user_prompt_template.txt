@@ -1,0 +1,14 @@
+Tarea: adapta el CV del usuario según la vacante.
+
+Payload (JSON):
+{{payload}}
+
+Descripción de la vacante:
+{{job_description}}
+
+Instrucciones:
+- Usa solamente datos del `payload` (no inventes).
+- Devuelve JSON con las claves: objective, summary, relevant_skills, relevant_experiences, notes.
+- `relevant_experiences` debe ser una lista de objetos con: role, organization, dates, details (lista), relevance_score (número).
+- Si un valor no existe en el payload, devuelve "NO_INFO" en lugar de inventarlo.
+- Devuelve solo el JSON, y asegúrate que sea parseable por un validador JSON.

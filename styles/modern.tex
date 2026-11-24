@@ -1,0 +1,87 @@
+% =============================================================
+% styles/modern.tex
+% Capa de DISEÑO. No debe contener contenido ni configuración.
+% Cualquier cambio visual (tipografía, color, espaciado) vive aquí.
+% =============================================================
+
+\usepackage[a4paper, top=1cm, bottom=1cm, left=1.6cm, right=1.6cm]{geometry}
+\usepackage{fontspec}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{ragged2e}
+\usepackage{needspace}
+
+% ---------- Tipografía ----------
+% Liberation Sans: métricamente compatible con Arial, disponible en el sistema.
+\setmainfont{Liberation Sans}
+\newfontfamily\headingfont{Liberation Sans}[BoldFont = {Liberation Sans Bold}]
+
+% ---------- Paleta ----------
+\definecolor{ckInk}{HTML}{1A1A1A}
+\definecolor{ckSubtle}{HTML}{5B5B5B}
+\definecolor{ckAccent}{HTML}{1F5FBF}
+\definecolor{ckRule}{HTML}{D8D8D8}
+
+\color{ckInk}
+
+% ---------- Encabezados de sección ----------
+\titleformat{\section}
+  {\headingfont\bfseries\Large\color{ckInk}}
+  {}{0em}{}
+  [\vspace{-2pt}{\color{ckRule}\rule{\linewidth}{0.8pt}}\vspace{2pt}]
+\titlespacing{\section}{0pt}{5pt}{2pt}
+
+\titleformat{\subsection}
+  {\headingfont\bfseries\large\color{ckInk}}
+  {}{0em}{}
+\titlespacing{\subsection}{0pt}{8pt}{2pt}
+
+% ---------- Listas de logros ----------
+\newenvironment{ckitems}{%
+  \begin{itemize}[
+    leftmargin=1.1em,
+    itemsep=1pt,
+    parsep=0pt,
+    topsep=1pt,
+    label={\color{ckAccent}\textbullet}
+  ]
+}{\end{itemize}}
+
+% ---------- Encabezado / identidad ----------
+\newcommand{\ckHeader}[3]{%
+  % #1 = nombre, #2 = titulo profesional, #3 = linea de contacto
+  {\headingfont\bfseries\fontsize{25}{27}\selectfont #1}\par
+  \vspace{1pt}
+  {\headingfont\color{ckAccent}\large #2}\par
+  \vspace{3pt}
+  {\small\color{ckSubtle} #3}\par
+  \vspace{4pt}
+  {\color{ckRule}\rule{\linewidth}{1.2pt}}
+}
+
+% ---------- Fila experiencia/educación: título + fecha alineada a la derecha ----------
+\newcommand{\ckEntry}[4]{%
+  % #1 = titulo del cargo/programa, #2 = fecha, #3 = organizacion, #4 = subtitulo opcional
+  \noindent
+  \begin{tabularx}{\linewidth}{@{}X r@{}}
+    {\headingfont\bfseries #1} & {\small\color{ckSubtle} #2}
+  \end{tabularx}\\[-1pt]
+  {\itshape\color{ckSubtle} #3}%
+  \ifx&#4&\else\ ---\ \itshape #4\fi\par
+}
+
+% ---------- Enlaces ----------
+\hypersetup{
+  colorlinks=true,
+  linkcolor=ckAccent,
+  urlcolor=ckAccent,
+  pdfborder={0 0 0}
+}
+
+\setlength{\parindent}{0pt}
+\linespread{1.02}
+\AtBeginDocument{\fontsize{10}{12.5}\selectfont}
+\pagestyle{empty}

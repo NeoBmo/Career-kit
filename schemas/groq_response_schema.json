@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "objective",
+    "summary",
+    "relevant_skills",
+    "relevant_experiences",
+    "notes"
+  ],
+  "properties": {
+    "objective": { "type": "string" },
+    "summary": { "type": "string" },
+    "relevant_skills": { "type": "array", "items": { "type": "string" } },
+    "relevant_experiences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "organization",
+          "dates",
+          "details",
+          "relevance_score"
+        ],
+        "properties": {
+          "role": { "type": "string" },
+          "organization": { "type": "string" },
+          "dates": { "type": "string" },
+          "details": { "type": "array", "items": { "type": "string" } },
+          "relevance_score": { "type": "number" }
+        }
+      }
+    },
+    "notes": { "type": "string" }
+  }
+}
