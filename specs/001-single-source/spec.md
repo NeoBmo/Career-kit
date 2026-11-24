@@ -47,6 +47,24 @@ reproducible que cualquiera puede comprobar.
   correos y teléfonos reales en los archivos versionados, compilará las variantes
   del ejemplo y dejará los PDF como artefacto.
 
+### Producto abierto para Colombia (añadido el 2026-11-24)
+
+Career Kit pasa a ser un producto gratuito y de código abierto, en español, pensado
+para personas en Colombia que no programan.
+
+- RF-11: CUANDO alguien crea su copia desde la plantilla de GitHub y edita su
+  `content/<persona>/cv.json` en el navegador, EL SISTEMA compilará sus variantes en
+  GitHub Actions y dejará los PDF para descargar, sin instalar nada en su equipo.
+- RF-12: EL SISTEMA ignorará en git sólo `content/private/`; cualquier otra persona
+  de `content/` se puede versionar en una copia privada.
+- RF-13: EL SISTEMA tendrá la documentación, los mensajes de la CLI y los errores de
+  validación en español.
+- RF-14: EL SISTEMA incluirá una guía de hoja de vida para Colombia que diga qué
+  datos no hacen falta (documento de identidad, foto, fecha de nacimiento, estado
+  civil) y por qué.
+- RF-15: ANTES de enviar un CV a Groq, EL SISTEMA avisará de que el contenido sale a
+  un tercero y pedirá confirmación en la CLI.
+
 ## Criterios de aceptación
 
 - [ ] `py -m unittest discover -s tests` pasa, con tests del renderizador, del escape
@@ -63,3 +81,7 @@ reproducible que cualquiera puede comprobar.
 - [ ] La comprobación ATS no informa keywords faltantes en las variantes del ejemplo.
 - [ ] El workflow de CI pasa en el primer push a un repositorio privado.
 - [ ] El README describe el flujo nuevo y muestra una captura de un PDF del ejemplo.
+- [ ] `docs/guia.md` lleva a alguien sin experiencia de la plantilla al PDF, paso a
+      paso, con la ruta exacta de cada botón de GitHub.
+- [ ] La skill `legal-compliance` revisa el aviso del flujo con IA y la guía de
+      Colombia, y su tabla no tiene `FALTA`.
